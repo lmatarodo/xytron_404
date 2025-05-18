@@ -1,0 +1,9 @@
+명령 순서
+
+cd ~/xytron/xycar_ws
+catkin_make
+source devel/setup.bash
+echo "source ~/xytron/xycar_ws/devel/setup.bash >> ~/.bashrc
+source ~/.bashrc
+roslaunch ros_tcp_endpoint endpoint.launch tcp_ip:=0.0.0.0 tcp_port:=10000
+
