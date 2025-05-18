@@ -91,7 +91,7 @@ def start():
     print("Lidar Visualizer Ready ----------")
     
     print("======================================")
-    print(" S T A R T    D R I V I N G ...")
+    print(" S T A R T    D R I V I N G ... -- donggyu")
     print("======================================")
 
     #=========================================
