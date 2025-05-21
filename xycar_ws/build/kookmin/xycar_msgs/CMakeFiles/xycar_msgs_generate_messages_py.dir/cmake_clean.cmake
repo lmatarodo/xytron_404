@@ -2,6 +2,7 @@ file(REMOVE_RECURSE
   "/home/dylan/xytron/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/_XycarMotor.py"
   "/home/dylan/xytron/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/_XycarUltrasonic.py"
   "/home/dylan/xytron/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/__init__.py"
+  "/home/dylan/xytron/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/_laneinfo.py"
   "CMakeFiles/xycar_msgs_generate_messages_py"
 )
 

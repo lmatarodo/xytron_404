@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>xycar_msgs</name>
-  <version>0.1.0</version>
-  <description>Message package for Xycar</description>
+  <version>0.0.0</version>
+  <description>The xycar_msgs package</description>
 
-  <maintainer email="maintainer@example.com">Maintainer Name</maintainer>
-  <license>BSD</license>
+  <maintainer email="dylan@todo.todo">dylan</maintainer>
+  <license>TODO</license>
 
   <buildtool_depend>catkin</buildtool_depend>
   

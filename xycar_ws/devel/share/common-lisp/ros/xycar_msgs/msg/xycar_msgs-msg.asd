@@ -10,4 +10,6 @@
     (:file "_package_XycarMotor" :depends-on ("_package"))
     (:file "XycarUltrasonic" :depends-on ("_package_XycarUltrasonic"))
     (:file "_package_XycarUltrasonic" :depends-on ("_package"))
+    (:file "laneinfo" :depends-on ("_package_laneinfo"))
+    (:file "_package_laneinfo" :depends-on ("_package"))
   ))

@@ -22,7 +22,7 @@ class LaneDetect:
         self.pub.publish(lane_info)
 
     def warpping(self, image):
-        source = np.float32([[320, 280], [440, 280], [0, 430], [800, 430]])
+        source = np.float32([[280, 280], [520, 280], [0, 430], [800, 430]])
         destination = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
         transform_matrix = cv2.getPerspectiveTransform(source, destination)
         bird_image = cv2.warpPerspective(image, transform_matrix, (260, 260))
