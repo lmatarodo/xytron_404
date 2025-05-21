@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(xycar_msgs)
 
 ## Find catkin and any catkin packages
@@ -13,6 +13,7 @@ add_message_files(
   FILES
   XycarMotor.msg
   XycarUltrasonic.msg
+  laneinfo.msg
 )
 
 ## Generate added messages and services with any dependencies
