@@ -1,0 +1,14 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/taeyeong/racing_ws/CARLA/PythonAPI/carla/dist/carla-0.9.15-py3.8-linux-x86_64.egg",
+        "/home/taeyeong/racing_ws/CARLA/PythonAPI/carla/",
+        "/home/taeyeong/racing_ws/src/ros-carla-bridge/PythonAPI/carla-0.9.15-py3.8-linux-x86_64.egg"
+    ],
+    "python.analysis.extraPaths": [
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/taeyeong/racing_ws/CARLA/PythonAPI/carla/dist/carla-0.9.15-py3.8-linux-x86_64.egg",
+        "/home/taeyeong/racing_ws/CARLA/PythonAPI/carla/",
+        "/home/taeyeong/racing_ws/src/ros-carla-bridge/PythonAPI/carla-0.9.15-py3.8-linux-x86_64.egg"
+    ]
+}

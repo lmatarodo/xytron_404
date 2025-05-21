@@ -23,12 +23,14 @@ image = np.empty(shape=[0])  # 카메라 이미지를 담을 변수
 ranges = None  # 라이다 데이터를 담을 변수
 motor = None  # 모터노드
 motor_msg = XycarMotor()  # 모터 토픽 메시지
-Fix_Speed = 10  # 모터 속도 고정 상수값 
+Fix_Speed = 20 #원래 10  # 모터 속도 고정 상수값 
 new_angle = 0  # 모터 조향각 초기값
 new_speed = Fix_Speed  # 모터 속도 초기값
 bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
 lane_data = None  # 차선 정보를 담을 변수
-
+k_p = new_speed/12
+k_para = 10
+k_lateral = 5
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
 #=============================================
@@ -82,13 +84,22 @@ def calculate_steering_angle():
     avg_slope = (left_slope + right_slope) / 2.0
     
     # 기울기를 조향각으로 변환 (라디안 -> 각도)
-    steering_angle = math.degrees(avg_slope)
+    steering_angle = -1*math.degrees(avg_slope)
     
+    # 조향각 계산
+    dx = lane_data.left_x
+    dy = -lane_data.right_x
+    #normalized_para_angle = (steering_angle>0)*(steering_angle/50)**2 - (steering_angle<0)*(steering_angle/50)**2
+    #steering_angle = k_p*steering_angle + k_para*normalized_para_angle
+    #normalrized_lateral_offset = ((dx>dy)*dx + (dy>dy)*dy)/320
+    #steering_angle = k_p*steering_angle - k_lateral*((dx>dy+100)*(normalrized_lateral_offset) + (dy>dx+100)*(normalrized_lateral_offset))
+    steering_angle = k_p*steering_angle    
     # 조향각 제한 (-50 ~ 50도)
     steering_angle = max(min(steering_angle, 50.0), -50.0)
-    
+    rospy.loginfo("angle: %.2f", steering_angle)
+    rospy.loginfo("dx: %.2f, dy: %.2f", dx, dy) #dx, dy값이 이상한데 lane_detection.py에 있는 mid point? 숫자를 어떻게 처리해야할 지 모르겠어요
     return steering_angle
-             
+
 #=============================================
 # 실질적인 메인 함수 
 #=============================================

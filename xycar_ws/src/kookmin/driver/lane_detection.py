@@ -18,18 +18,22 @@ class LaneDetect:
 
     def camera_callback(self, data):
         img = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
+        #img_bottom =     이렇게 y절반으로 위아래 나눠서 스티어(아래) + alpha*스티어(위)    where alpha < 1 하는 방법으로 제어는 어떨련지..?
+        #img_top =        그러면 안에 내부 함수에 하드코딩 되어있는 숫자값들을 변수로들로 바꿔야할 것 같습니다요
         lane_info = self.process_image(img)
         self.pub.publish(lane_info)
 
-    def warpping(self, image):
-        source = np.float32([[280, 280], [520, 280], [0, 430], [800, 430]])
+    def warpping(self, image): #y=−0.55794x+390.00000 #y=0.56522x+33.91304
+        source = np.float32([[161,300], [471,300], [0, 390], [630, 390]])
+        #source = np.float32([[237, 260], [400, 260], [0, 390], [630, 390]]) #처음뽑은 값
+        #source = np.float32([[280, 280], [520, 280], [0, 430], [800, 430]]) #original
         destination = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
         transform_matrix = cv2.getPerspectiveTransform(source, destination)
         bird_image = cv2.warpPerspective(image, transform_matrix, (260, 260))
         return bird_image
 
     def color_filter(self, image):
-        lower = np.array([220, 220, 220])
+        lower = np.array([0, 255, 255]) #수정
         upper = np.array([255, 255, 255])
         white_mask = cv2.inRange(image, lower, upper)
         masked = cv2.bitwise_and(image, image, mask=white_mask)
@@ -129,13 +133,13 @@ class LaneDetect:
         pub_msg = laneinfo()
 
         # 왼쪽 차선 정보
-        pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])  
+        pub_msg.left_x = 320.0 - np.float32(draw_info['left_fitx'][-1])   #기존값 130.0
         pub_msg.left_y = np.float32(draw_info['ploty'][-1])  
         slope_left = draw_info['left_slope']  # 기울기
         pub_msg.left_slope = np.float32(np.arctan(slope_left))  # 라디안 변환
 
-        # 오른쪽 차선 정보
-        pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0
+        # 오른쪽 차선 정보 
+        pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 320.0 #기존값 130.0
         pub_msg.right_y = np.float32(draw_info['ploty'][-1])  
         slope_right = draw_info['right_slope']  # 기울기
         pub_msg.right_slope = np.float32(np.arctan(slope_right))  # 라디안 변환
@@ -152,10 +156,10 @@ class LaneDetect:
 
         # 디버깅용 이미지 표시
         cv2.imshow("raw_img", img_resized)
-        cv2.imshow("bird_img", warpped_resized)
-        cv2.imshow('blur_img', blurred_resized)
-        cv2.imshow("filter_img", filtered_resized)
-        cv2.imshow("gray_img", gray_resized)
+        #cv2.imshow("bird_img", warpped_resized)
+        #cv2.imshow('blur_img', blurred_resized)
+        #cv2.imshow("filter_img", filtered_resized)
+        #cv2.imshow("gray_img", gray_resized)
         cv2.imshow("binary_img", binary_resized)
         cv2.imshow("result_img", out_resized)
         cv2.waitKey(1)
