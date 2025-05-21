@@ -1,6 +1,7 @@
 file(REMOVE_RECURSE
   "/home/dylan/xytron/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarMotor.lisp"
   "/home/dylan/xytron/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarUltrasonic.lisp"
+  "/home/dylan/xytron/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/laneinfo.lisp"
   "CMakeFiles/xycar_msgs_generate_messages_lisp"
 )
 

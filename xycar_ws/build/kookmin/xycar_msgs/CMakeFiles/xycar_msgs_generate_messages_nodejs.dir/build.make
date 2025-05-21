@@ -55,6 +55,7 @@ include kookmin/xycar_msgs/CMakeFiles/xycar_msgs_generate_messages_nodejs.dir/pr
 
 kookmin/xycar_msgs/CMakeFiles/xycar_msgs_generate_messages_nodejs: /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarMotor.js
 kookmin/xycar_msgs/CMakeFiles/xycar_msgs_generate_messages_nodejs: /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarUltrasonic.js
+kookmin/xycar_msgs/CMakeFiles/xycar_msgs_generate_messages_nodejs: /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js
 
 
 /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarMotor.js: /opt/ros/noetic/lib/gennodejs/gen_nodejs.py
@@ -70,9 +71,15 @@ kookmin/xycar_msgs/CMakeFiles/xycar_msgs_generate_messages_nodejs: /home/dylan/x
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/dylan/xytron/xycar_ws/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Generating Javascript code from xycar_msgs/XycarUltrasonic.msg"
 	cd /home/dylan/xytron/xycar_ws/build/kookmin/xycar_msgs && ../../catkin_generated/env_cached.sh /usr/bin/python3 /opt/ros/noetic/share/gennodejs/cmake/../../../lib/gennodejs/gen_nodejs.py /home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg -Ixycar_msgs:/home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg -Istd_msgs:/opt/ros/noetic/share/std_msgs/cmake/../msg -Isensor_msgs:/opt/ros/noetic/share/sensor_msgs/cmake/../msg -Igeometry_msgs:/opt/ros/noetic/share/geometry_msgs/cmake/../msg -p xycar_msgs -o /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg
 
+/home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js: /opt/ros/noetic/lib/gennodejs/gen_nodejs.py
+/home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js: /home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/dylan/xytron/xycar_ws/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Generating Javascript code from xycar_msgs/laneinfo.msg"
+	cd /home/dylan/xytron/xycar_ws/build/kookmin/xycar_msgs && ../../catkin_generated/env_cached.sh /usr/bin/python3 /opt/ros/noetic/share/gennodejs/cmake/../../../lib/gennodejs/gen_nodejs.py /home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg -Ixycar_msgs:/home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg -Istd_msgs:/opt/ros/noetic/share/std_msgs/cmake/../msg -Isensor_msgs:/opt/ros/noetic/share/sensor_msgs/cmake/../msg -Igeometry_msgs:/opt/ros/noetic/share/geometry_msgs/cmake/../msg -p xycar_msgs -o /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg
+
 xycar_msgs_generate_messages_nodejs: kookmin/xycar_msgs/CMakeFiles/xycar_msgs_generate_messages_nodejs
 xycar_msgs_generate_messages_nodejs: /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarMotor.js
 xycar_msgs_generate_messages_nodejs: /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarUltrasonic.js
+xycar_msgs_generate_messages_nodejs: /home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js
 xycar_msgs_generate_messages_nodejs: kookmin/xycar_msgs/CMakeFiles/xycar_msgs_generate_messages_nodejs.dir/build.make
 
 .PHONY : xycar_msgs_generate_messages_nodejs

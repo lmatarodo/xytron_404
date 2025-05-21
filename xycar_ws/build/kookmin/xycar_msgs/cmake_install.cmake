@@ -41,6 +41,7 @@ if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/xycar_msgs/msg" TYPE FILE FILES
     "/home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg/XycarMotor.msg"
     "/home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg"
+    "/home/dylan/xytron/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg"
     )
 endif()
 

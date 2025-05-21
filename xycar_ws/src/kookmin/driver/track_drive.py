@@ -11,6 +11,7 @@ import numpy as np
 import cv2, rospy, time, os, math
 from sensor_msgs.msg import Image
 from xycar_msgs.msg import XycarMotor
+from xycar_msgs.msg import laneinfo
 from cv_bridge import CvBridge
 from sensor_msgs.msg import LaserScan
 import matplotlib.pyplot as plt
@@ -26,6 +27,7 @@ Fix_Speed = 10  # 모터 속도 고정 상수값
 new_angle = 0  # 모터 조향각 초기값
 new_speed = Fix_Speed  # 모터 속도 초기값
 bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
+lane_data = None  # 차선 정보를 담을 변수
 
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
@@ -49,6 +51,13 @@ def usbcam_callback(data):
 def lidar_callback(data):
     global ranges    
     ranges = data.ranges[0:360]
+
+#=============================================
+# 콜백함수 - 차선 정보를 받아서 처리하는 콜백함수
+#=============================================
+def lane_callback(data):
+    global lane_data
+    lane_data = data
 	
 #=============================================
 # 모터로 토픽을 발행하는 함수 
@@ -57,12 +66,33 @@ def drive(angle, speed):
     motor_msg.angle = float(angle)
     motor_msg.speed = float(speed)
     motor.publish(motor_msg)
+
+#=============================================
+# 차선 정보를 기반으로 조향각을 계산하는 함수
+#=============================================
+def calculate_steering_angle():
+    if lane_data is None:
+        return 0.0
+    
+    # 왼쪽과 오른쪽 차선의 기울기를 이용하여 조향각 계산
+    left_slope = lane_data.left_slope
+    right_slope = lane_data.right_slope
+    
+    # 두 차선의 기울기 평균을 사용
+    avg_slope = (left_slope + right_slope) / 2.0
+    
+    # 기울기를 조향각으로 변환 (라디안 -> 각도)
+    steering_angle = math.degrees(avg_slope)
+    
+    # 조향각 제한 (-50 ~ 50도)
+    steering_angle = max(min(steering_angle, 50.0), -50.0)
+    
+    return steering_angle
              
 #=============================================
 # 실질적인 메인 함수 
 #=============================================
 def start():
-
     global motor, image, ranges
     
     print("Start program --------------")
@@ -71,8 +101,9 @@ def start():
     # 노드를 생성하고, 구독/발행할 토픽들을 선언합니다.
     #=========================================
     rospy.init_node('Track_Driver')
-    rospy.Subscriber("/usb_cam/image_raw/",Image,usbcam_callback, queue_size=1)
+    rospy.Subscriber("/usb_cam/image_raw/", Image, usbcam_callback, queue_size=1)
     rospy.Subscriber("/scan", LaserScan, lidar_callback, queue_size=1)
+    rospy.Subscriber("lane_info", laneinfo, lane_callback, queue_size=1)
     motor = rospy.Publisher('xycar_motor', XycarMotor, queue_size=1)
         
     #=========================================
@@ -91,17 +122,17 @@ def start():
     print("Lidar Visualizer Ready ----------")
     
     print("======================================")
-    print(" S T A R T    D R I V I N G ... -- donggyu")
+    print(" S T A R T    D R I V I N G ...")
     print("======================================")
 
     #=========================================
     # 메인 루프 
     #=========================================
     while not rospy.is_shutdown():
-
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        cv2.imshow("original", image)
-        cv2.imshow("gray", gray)
+        if image.size != 0:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            cv2.imshow("original", image)
+            cv2.imshow("gray", gray)
 
         if ranges is not None:            
             angles = np.linspace(0,2*np.pi, len(ranges))+np.pi/2
@@ -111,8 +142,12 @@ def start():
             lidar_points.set_data(x, y)
             fig.canvas.draw_idle()
             plt.pause(0.01)  
-            
-        drive(angle=0.0, speed=10.0)
+        
+        # 차선 정보를 기반으로 조향각 계산
+        steering_angle = calculate_steering_angle()
+        
+        # 계산된 조향각으로 주행
+        drive(angle=steering_angle, speed=Fix_Speed)
         time.sleep(0.1)
         
         cv2.waitKey(1)

@@ -1,6 +1,7 @@
 file(REMOVE_RECURSE
   "/home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarMotor.js"
   "/home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarUltrasonic.js"
+  "/home/dylan/xytron/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js"
   "CMakeFiles/xycar_msgs_generate_messages_nodejs"
 )
 

@@ -1,6 +1,6 @@
 set(_CATKIN_CURRENT_PACKAGE "xycar_msgs")
-set(xycar_msgs_VERSION "0.1.0")
-set(xycar_msgs_MAINTAINER "Maintainer Name <maintainer@example.com>")
+set(xycar_msgs_VERSION "0.0.0")
+set(xycar_msgs_MAINTAINER "dylan <dylan@todo.todo>")
 set(xycar_msgs_PACKAGE_FORMAT "2")
 set(xycar_msgs_BUILD_DEPENDS "message_generation" "std_msgs" "sensor_msgs")
 set(xycar_msgs_BUILD_EXPORT_DEPENDS )

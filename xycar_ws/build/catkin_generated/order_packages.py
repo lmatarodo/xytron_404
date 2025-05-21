@@ -2,4 +2,4 @@
 source_root_dir = '/home/dylan/xytron/xycar_ws/src'
 whitelisted_packages = ''.split(';') if '' != '' else []
 blacklisted_packages = ''.split(';') if '' != '' else []
-underlay_workspaces = '/home/dylan/carla_ws/devel;/home/dylan/catkin_ws/devel;/opt/ros/noetic'.split(';') if '/home/dylan/carla_ws/devel;/home/dylan/catkin_ws/devel;/opt/ros/noetic' != '' else []
+underlay_workspaces = '/home/dylan/xytron/xycar_ws/devel;/home/dylan/carla_ws/devel;/home/dylan/catkin_ws/devel;/opt/ros/noetic'.split(';') if '/home/dylan/xytron/xycar_ws/devel;/home/dylan/carla_ws/devel;/home/dylan/catkin_ws/devel;/opt/ros/noetic' != '' else []
