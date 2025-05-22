@@ -5,7 +5,6 @@ import numpy as np
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from xycar_msgs.msg import laneinfo
-from geometry_msgs.msg import Vector3Stamped
 
 
 class LaneDetect:
@@ -13,59 +12,23 @@ class LaneDetect:
         self.bridge = CvBridge()
         rospy.init_node('lane_detection_node', anonymous=False)
 
-        # Stanley 제어를 위한 변수들
-        self.lane_width = 0.5  # 차선 폭 (미터)
-        self.max_steer = 50.0  # 최대 조향각
-        self.left_x = 0.0
-        self.right_x = 0.0
-        self.left_slope = 0.0
-        self.right_slope = 0.0
-
         # ROS Subscriber & Publisher
         rospy.Subscriber('/usb_cam/image_raw/', Image, self.camera_callback, queue_size=1)
         self.pub = rospy.Publisher("lane_info", laneinfo, queue_size=1)
-        self.cmd_pub = rospy.Publisher("cmd_vel", Vector3Stamped, queue_size=1)
-
-    def stanley_control(self):
-        try:
-            if self.left_x == 130 and self.right_x == -130:
-                return
-            elif self.left_x == 130:  # 차선이 하나만 잡히는 경우 
-                lateral_err = (0.5 - (self.right_x/220))*self.lane_width
-                heading_err = self.right_slope
-            elif self.right_x == -130:
-                lateral_err = (-0.5 + (self.left_x/220))*self.lane_width
-                heading_err = self.left_slope
-            else:  # 일반적인 주행
-                lateral_err = ((self.left_x/(self.left_x + self.right_x)) - 0.5)*self.lane_width 
-                heading_err = (self.left_slope + self.right_slope)/2
-
-            k = 1  # stanley_상수
-            velocity_profile = 20  # 속도값 km/h
-                    
-            steer = heading_err + np.arctan2(k*lateral_err,((velocity_profile/3.6)))  # stanley control
-
-            steer = max(-self.max_steer,min(self.max_steer,steer)) * 0.7  # scaling
-
-            throttle = 0.6
-            
-            cmd_vel = Vector3Stamped()
-            cmd_vel.vector.x = throttle
-            cmd_vel.vector.y = -np.degrees(steer)*1/28  # -0.1~0.1
-            self.cmd_pub.publish(cmd_vel)
-            
-            rospy.loginfo(f'\nlateral error : {lateral_err}\nheading error : {heading_err}\nsteer : {steer}\npubsteer : {cmd_vel.vector.y}')
-        except ZeroDivisionError as e:
-            rospy.loginfo(e)
 
     def camera_callback(self, data):
         img = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
+        #img_bottom =     이렇게 y절반으로 위아래 나눠서 스티어(아래) + alpha*스티어(위)    where alpha < 1 하는 방법으로 제어는 어떨련지..?
+        #img_top =        그러면 안에 내부 함수에 하드코딩 되어있는 숫자값들을 변수로들로 바꿔야할 것 같습니다요
         lane_info = self.process_image(img)
         self.pub.publish(lane_info)
-        self.stanley_control()  # Stanley 제어 실행
 
     def warpping(self, image): #y=−0.55794x+390.00000 #y=0.56522x+33.91304
+        #source = np.float32([[161,300], [471,300], [0, 390], [630, 390]]) #순서대로 좌상/우상/좌하/우하
         source = np.float32([[180,300], [450,300], [0, 420], [639, 420]]) #순서대로 좌상/우상/좌하/우하
+        #source = np.float32([[181,280], [431,280], [20, 390], [630, 390]])
+        #source = np.float32([[237, 260], [400, 260], [0, 390], [630, 390]]) #처음뽑은 값
+        #source = np.float32([[280, 280], [520, 280], [0, 430], [800, 430]]) #original
         destination = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
         transform_matrix = cv2.getPerspectiveTransform(source, destination)
         bird_image = cv2.warpPerspective(image, transform_matrix, (260, 260))
@@ -172,20 +135,16 @@ class LaneDetect:
         pub_msg = laneinfo()
 
         # 왼쪽 차선 정보
-        self.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])   #기존값 130.0
-        self.left_y = np.float32(draw_info['ploty'][-1])  
-        self.left_slope = draw_info['left_slope']  # 기울기
-        pub_msg.left_x = self.left_x
-        pub_msg.left_y = self.left_y
-        pub_msg.left_slope = np.float32(np.arctan(self.left_slope))  # 라디안 변환
+        pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])   #기존값 130.0
+        pub_msg.left_y = np.float32(draw_info['ploty'][-1])  
+        slope_left = draw_info['left_slope']  # 기울기
+        pub_msg.left_slope = np.float32(np.arctan(slope_left))  # 라디안 변환
 
         # 오른쪽 차선 정보 
-        self.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0 #기존값 130.0
-        self.right_y = np.float32(draw_info['ploty'][-1])  
-        self.right_slope = draw_info['right_slope']  # 기울기
-        pub_msg.right_x = self.right_x
-        pub_msg.right_y = self.right_y
-        pub_msg.right_slope = np.float32(np.arctan(self.right_slope))  # 라디안 변환
+        pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0 #기존값 130.0
+        pub_msg.right_y = np.float32(draw_info['ploty'][-1])  
+        slope_right = draw_info['right_slope']  # 기울기
+        pub_msg.right_slope = np.float32(np.arctan(slope_right))  # 라디안 변환
 
         # 이미지 크기 조절
         display_size = (640, 480)
