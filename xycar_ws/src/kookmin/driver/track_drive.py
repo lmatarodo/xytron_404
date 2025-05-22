@@ -23,7 +23,7 @@ image = np.empty(shape=[0])  # 카메라 이미지를 담을 변수
 ranges = None  # 라이다 데이터를 담을 변수
 motor = None  # 모터노드
 motor_msg = XycarMotor()  # 모터 토픽 메시지
-Fix_Speed = 20 #원래 10  # 모터 속도 고정 상수값 
+Fix_Speed = 30 #원래 10  # 모터 속도 고정 상수값 
 new_angle = 0  # 모터 조향각 초기값
 new_speed = Fix_Speed  # 모터 속도 초기값
 bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
