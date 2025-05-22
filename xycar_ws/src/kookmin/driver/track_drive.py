@@ -14,6 +14,7 @@ from xycar_msgs.msg import XycarMotor
 from xycar_msgs.msg import laneinfo
 from cv_bridge import CvBridge
 from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Vector3Stamped
 import matplotlib.pyplot as plt
 
 #=============================================
@@ -23,7 +24,7 @@ image = np.empty(shape=[0])  # 카메라 이미지를 담을 변수
 ranges = None  # 라이다 데이터를 담을 변수
 motor = None  # 모터노드
 motor_msg = XycarMotor()  # 모터 토픽 메시지
-Fix_Speed = 30 #원래 10  # 모터 속도 고정 상수값 
+Fix_Speed = 20 #원래 10  # 모터 속도 고정 상수값 
 new_angle = 0  # 모터 조향각 초기값
 new_speed = Fix_Speed  # 모터 속도 초기값
 bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
@@ -31,6 +32,15 @@ lane_data = None  # 차선 정보를 담을 변수
 k_p = new_speed/12
 k_para = 10
 k_lateral = 5
+
+# Stanley 제어를 위한 변수들
+lane_width = 260  # 차선 폭 (픽셀 단위, BEV 이미지의 너비)
+max_steer = 50.0  # 최대 조향각
+left_x = 0.0
+right_x = 0.0
+left_slope = 0.0
+right_slope = 0.0
+
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
 #=============================================
@@ -58,9 +68,13 @@ def lidar_callback(data):
 # 콜백함수 - 차선 정보를 받아서 처리하는 콜백함수
 #=============================================
 def lane_callback(data):
-    global lane_data
+    global lane_data, left_x, right_x, left_slope, right_slope
     lane_data = data
-	
+    left_x = data.left_x
+    right_x = data.right_x
+    left_slope = data.left_slope
+    right_slope = data.right_slope
+
 #=============================================
 # 모터로 토픽을 발행하는 함수 
 #=============================================
@@ -70,35 +84,40 @@ def drive(angle, speed):
     motor.publish(motor_msg)
 
 #=============================================
-# 차선 정보를 기반으로 조향각을 계산하는 함수
+# Stanley 제어 함수
 #=============================================
-def calculate_steering_angle():
-    if lane_data is None:
-        return 0.0
-    
-    # 왼쪽과 오른쪽 차선의 기울기를 이용하여 조향각 계산
-    left_slope = lane_data.left_slope
-    right_slope = lane_data.right_slope
-    
-    # 두 차선의 기울기 평균을 사용
-    avg_slope = (left_slope + right_slope) / 2.0
-    
-    # 기울기를 조향각으로 변환 (라디안 -> 각도)
-    steering_angle = -1*math.degrees(avg_slope)
-    
-    # 조향각 계산
-    dx = lane_data.left_x
-    dy = -lane_data.right_x
-    #normalized_para_angle = (steering_angle>0)*(steering_angle/50)**2 - (steering_angle<0)*(steering_angle/50)**2
-    #steering_angle = k_p*steering_angle + k_para*normalized_para_angle
-    #normalrized_lateral_offset = ((dx>dy)*dx + (dy>dy)*dy)/320
-    #steering_angle = k_p*steering_angle - k_lateral*((dx>dy+100)*(normalrized_lateral_offset) + (dy>dx+100)*(normalrized_lateral_offset))
-    steering_angle = k_p*steering_angle    
-    # 조향각 제한 (-50 ~ 50도)
-    steering_angle = max(min(steering_angle, 50.0), -50.0)
-    rospy.loginfo("angle: %.2f", steering_angle)
-    rospy.loginfo("dx: %.2f, dy: %.2f", dx, dy) #dx, dy값이 이상한데 lane_detection.py에 있는 mid point? 숫자를 어떻게 처리해야할 지 모르겠어요
-    return steering_angle
+def stanley_control():
+    global left_x, right_x, left_slope, right_slope
+    try:
+        if left_x == 130 and right_x == -130:
+            return
+        elif left_x == 130:  # 차선이 하나만 잡히는 경우 
+            lateral_err = (0.5 - (right_x/lane_width))  # 픽셀 단위로 계산
+            heading_err = right_slope
+        elif right_x == -130:
+            lateral_err = (-0.5 + (left_x/lane_width))  # 픽셀 단위로 계산
+            heading_err = left_slope
+        else:  # 일반적인 주행
+            lateral_err = ((left_x/(left_x + right_x)) - 0.5)  # 픽셀 단위로 계산
+            heading_err = (left_slope + right_slope)/2
+
+        k = 1  # stanley_상수
+        velocity_profile = 30  # 속도값 km/h
+                
+        steer = heading_err + np.arctan2(k*lateral_err,((velocity_profile/3.6)))  # stanley control
+
+        steer = max(-max_steer,min(max_steer,steer)) * 0.5  # scaling
+
+        throttle = 0.6
+        
+        cmd_vel = Vector3Stamped()
+        cmd_vel.vector.x = throttle
+        cmd_vel.vector.y = -np.degrees(steer)*1/28  # -0.1~0.1
+        motor.publish(cmd_vel)
+        
+        rospy.loginfo(f'\nlateral error : {lateral_err}\nheading error : {heading_err}\nsteer : {steer}\npubsteer : {cmd_vel.vector.y}')
+    except ZeroDivisionError as e:
+        rospy.loginfo(e)
 
 #=============================================
 # 실질적인 메인 함수 
@@ -154,11 +173,8 @@ def start():
             fig.canvas.draw_idle()
             plt.pause(0.01)  
         
-        # 차선 정보를 기반으로 조향각 계산
-        steering_angle = calculate_steering_angle()
-        
-        # 계산된 조향각으로 주행
-        drive(angle=steering_angle, speed=Fix_Speed)
+        # Stanley 제어 실행
+        stanley_control()
         time.sleep(0.1)
         
         cv2.waitKey(1)

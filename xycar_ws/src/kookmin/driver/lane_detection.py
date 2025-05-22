@@ -26,38 +26,6 @@ class LaneDetect:
         self.pub = rospy.Publisher("lane_info", laneinfo, queue_size=1)
         self.cmd_pub = rospy.Publisher("cmd_vel", Vector3Stamped, queue_size=1)
 
-    def stanley_control(self):
-        try:
-            if self.left_x == 130 and self.right_x == -130:
-                return
-            elif self.left_x == 130:  # 차선이 하나만 잡히는 경우 
-                lateral_err = (0.5 - (self.right_x/220))*self.lane_width
-                heading_err = self.right_slope
-            elif self.right_x == -130:
-                lateral_err = (-0.5 + (self.left_x/220))*self.lane_width
-                heading_err = self.left_slope
-            else:  # 일반적인 주행
-                lateral_err = ((self.left_x/(self.left_x + self.right_x)) - 0.5)*self.lane_width 
-                heading_err = (self.left_slope + self.right_slope)/2
-
-            k = 1  # stanley_상수
-            velocity_profile = 20  # 속도값 km/h
-                    
-            steer = heading_err + np.arctan2(k*lateral_err,((velocity_profile/3.6)))  # stanley control
-
-            steer = max(-self.max_steer,min(self.max_steer,steer)) * 0.7  # scaling
-
-            throttle = 0.6
-            
-            cmd_vel = Vector3Stamped()
-            cmd_vel.vector.x = throttle
-            cmd_vel.vector.y = -np.degrees(steer)*1/28  # -0.1~0.1
-            self.cmd_pub.publish(cmd_vel)
-            
-            rospy.loginfo(f'\nlateral error : {lateral_err}\nheading error : {heading_err}\nsteer : {steer}\npubsteer : {cmd_vel.vector.y}')
-        except ZeroDivisionError as e:
-            rospy.loginfo(e)
-
     def camera_callback(self, data):
         img = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
         lane_info = self.process_image(img)
@@ -76,7 +44,7 @@ class LaneDetect:
         upper = np.array([255, 255, 255])
         white_mask = cv2.inRange(image, lower, upper)
         masked = cv2.bitwise_and(image, image, mask=white_mask)
-        cv2.rectangle(masked, (80, 80), (180, 260), (0, 0, 0), -1)
+        #cv2.rectangle(masked, (80, 80), (180, 260), (0, 0, 0), -1)
         return masked
 
     def plothistogram(self, image):
