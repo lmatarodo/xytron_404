@@ -224,28 +224,16 @@ struct Printer< ::xycar_msgs::laneinfo_<ContainerAllocator> >
 {
   template<typename Stream> static void stream(Stream& s, const std::string& indent, const ::xycar_msgs::laneinfo_<ContainerAllocator>& v)
   {
-    if (false || !indent.empty())
-      s << std::endl;
     s << indent << "left_x: ";
     Printer<float>::stream(s, indent + "  ", v.left_x);
-    if (true || !indent.empty())
-      s << std::endl;
     s << indent << "left_y: ";
     Printer<float>::stream(s, indent + "  ", v.left_y);
-    if (true || !indent.empty())
-      s << std::endl;
     s << indent << "left_slope: ";
     Printer<float>::stream(s, indent + "  ", v.left_slope);
-    if (true || !indent.empty())
-      s << std::endl;
     s << indent << "right_x: ";
     Printer<float>::stream(s, indent + "  ", v.right_x);
-    if (true || !indent.empty())
-      s << std::endl;
     s << indent << "right_y: ";
     Printer<float>::stream(s, indent + "  ", v.right_y);
-    if (true || !indent.empty())
-      s << std::endl;
     s << indent << "right_slope: ";
     Printer<float>::stream(s, indent + "  ", v.right_slope);
   }
