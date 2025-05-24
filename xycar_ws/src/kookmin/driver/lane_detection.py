@@ -24,9 +24,10 @@ class LaneDetect:
         self.pub.publish(lane_info)
 
     def warpping(self, image): #y=−0.55794x+390.00000 #y=0.56522x+33.91304
-        #source = np.float32([[161,300], [471,300], [0, 390], [630, 390]]) #순서대로 좌상/우상/좌하/우하
-        source = np.float32([[180,300], [450,300], [0, 420], [639, 420]]) #순서대로 좌상/우상/좌하/우하
+        source = np.float32([[161,300], [471,300], [0, 390], [630, 390]]) #순서대로 좌상/우상/좌하/우하
+        #source = np.float32([[180,300], [450,300], [0, 420], [639, 420]]) #순서대로 좌상/우상/좌하/우하
         #source = np.float32([[181,280], [431,280], [20, 390], [630, 390]])
+        #source = np.float32([[234, 260], [400, 260], [0, 390], [630, 390]])
         #source = np.float32([[237, 260], [400, 260], [0, 390], [630, 390]]) #처음뽑은 값
         #source = np.float32([[280, 280], [520, 280], [0, 430], [800, 430]]) #original
         destination = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
@@ -149,12 +150,12 @@ class LaneDetect:
         # 이미지 크기 조절
         display_size = (640, 480)
         img_resized = cv2.resize(img, display_size)
-        warpped_resized = cv2.resize(warpped_img, (400, 400))
-        blurred_resized = cv2.resize(blurred_img, (400, 400))
-        filtered_resized = cv2.resize(filtered_img, (400, 400))
-        gray_resized = cv2.resize(gray_img, (400, 400))
-        binary_resized = cv2.resize(binary_img, (400, 400))
-        out_resized = cv2.resize(out_img, (400, 400))
+        warpped_resized = cv2.resize(warpped_img, (260, 260))
+        blurred_resized = cv2.resize(blurred_img, (260, 260))
+        filtered_resized = cv2.resize(filtered_img, (260, 260))
+        gray_resized = cv2.resize(gray_img, (260, 260))
+        binary_resized = cv2.resize(binary_img, (260, 260))
+        out_resized = cv2.resize(out_img, (260, 260))
 
         # 디버깅용 이미지 표시
         cv2.imshow("raw_img", img_resized)
