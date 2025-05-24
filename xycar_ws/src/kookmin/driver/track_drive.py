@@ -28,8 +28,8 @@ new_angle = 0  # 모터 조향각 초기값
 new_speed = Fix_Speed  # 모터 속도 초기값
 bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
 lane_data = None  # 차선 정보를 담을 변수
-k_p = new_speed/12
-k_para = 10
+k_p = Fix_Speed/25
+k_para = 20
 k_lateral = 5
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
@@ -60,6 +60,7 @@ def lidar_callback(data):
 def lane_callback(data):
     global lane_data
     lane_data = data
+    #rospy.loginfo("left: %.2f, right: %.2f", left, right)
 	
 #=============================================
 # 모터로 토픽을 발행하는 함수 
@@ -72,6 +73,57 @@ def drive(angle, speed):
 #=============================================
 # 차선 정보를 기반으로 조향각을 계산하는 함수
 #=============================================
+def kanayama_control():
+    global lane_data
+    if lane_data is None:
+        return 0.0, Fix_Speed  # 기본 조향각 0, 속도 Fix_Speed
+
+    # 좌우 차선 x, slope 가져오기
+    left_x = lane_data.left_x
+    right_x = lane_data.right_x
+    left_slope = lane_data.left_slope
+    right_slope = lane_data.right_slope
+    lane_width = 3.5  # m
+    
+    # 파라미터
+    K_y = 1
+    K_phi = 3
+    L = 0.5
+    v_r = Fix_Speed
+    
+    # lateral_err, heading_err 계산 (주신 코드 참고)
+    if left_x == 130 and right_x == 130:
+        rospy.logwarn("Both lanes lost, skipping control.")
+        return 0.0, Fix_Speed
+    elif left_x == 130:
+        #lateral_err = (0.5 - (right_x / 220.0)) * lane_width
+        #lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
+        lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
+        heading_err = right_slope
+    elif right_x == 130:
+        #lateral_err = (-0.5 + (left_x / 220.0)) * lane_width
+        #lateral_err = (0.5 - (left_x / 150.0)) * lane_width
+        lateral_err = (0.5 - (left_x / 150.0)) * lane_width
+        heading_err = left_slope
+    else:
+        lateral_err = -(left_x / (left_x + right_x) - 0.5) * lane_width
+        heading_err = 0.5 * (left_slope + right_slope)
+    heading_err = 0.5 * (left_slope + right_slope)
+    heading_err *= -1
+
+    # 각속도 w 계산
+    v = v_r * (math.cos(heading_err))**2
+    w = v_r * (K_y * lateral_err + K_phi * math.sin(heading_err))
+
+    # 조향각 delta 계산 (라디안)
+    delta = math.atan2(w * L, v)
+
+    # 필요시 각도를 degree 단위로 변환 가능 (현재는 radian 그대로 사용)
+    steering_angle = math.degrees(delta)
+
+    return steering_angle, v
+
+
 def calculate_steering_angle():
     if lane_data is None:
         return 0.0
@@ -87,17 +139,17 @@ def calculate_steering_angle():
     steering_angle = -1*math.degrees(avg_slope)
     
     # 조향각 계산
-    dx = lane_data.left_x
-    dy = -lane_data.right_x
-    #normalized_para_angle = (steering_angle>0)*(steering_angle/50)**2 - (steering_angle<0)*(steering_angle/50)**2
-    #steering_angle = k_p*steering_angle + k_para*normalized_para_angle
+    #dx = lane_data.left_x
+    #dy = -lane_data.right_x
+    #normalized_para_angle = -((steering_angle>0)-(steering_angle<0))*(steering_angle/50)**2
+    #steering_angle = steering_angle + math.atan(x)
     #normalrized_lateral_offset = ((dx>dy)*dx + (dy>dy)*dy)/320
     #steering_angle = k_p*steering_angle - k_lateral*((dx>dy+100)*(normalrized_lateral_offset) + (dy>dx+100)*(normalrized_lateral_offset))
-    steering_angle = k_p*steering_angle    
+    #steering_angle = k_p*steering_angle
+    steering_angle = k_p*steering_angle
     # 조향각 제한 (-50 ~ 50도)
     steering_angle = max(min(steering_angle, 50.0), -50.0)
     rospy.loginfo("angle: %.2f", steering_angle)
-    rospy.loginfo("dx: %.2f, dy: %.2f", dx, dy) #dx, dy값이 이상한데 lane_detection.py에 있는 mid point? 숫자를 어떻게 처리해야할 지 모르겠어요
     return steering_angle
 
 #=============================================
@@ -155,7 +207,7 @@ def start():
             plt.pause(0.01)  
         
         # 차선 정보를 기반으로 조향각 계산
-        steering_angle = calculate_steering_angle()
+        steering_angle, _ = kanayama_control()
         
         # 계산된 조향각으로 주행
         drive(angle=steering_angle, speed=Fix_Speed)
