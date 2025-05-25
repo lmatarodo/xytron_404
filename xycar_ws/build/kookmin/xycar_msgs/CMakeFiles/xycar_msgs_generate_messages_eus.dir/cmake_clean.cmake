@@ -1,8 +1,8 @@
 file(REMOVE_RECURSE
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/manifest.l"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/msg/XycarMotor.l"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/msg/XycarUltrasonic.l"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/msg/laneinfo.l"
+  "/home/jungejblue/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/manifest.l"
+  "/home/jungejblue/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/msg/XycarMotor.l"
+  "/home/jungejblue/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/msg/XycarUltrasonic.l"
+  "/home/jungejblue/xytron_404/xycar_ws/devel/share/roseus/ros/xycar_msgs/msg/laneinfo.l"
   "CMakeFiles/xycar_msgs_generate_messages_eus"
 )
 

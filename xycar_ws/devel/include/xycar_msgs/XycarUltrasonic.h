@@ -253,25 +253,17 @@ struct Printer< ::xycar_msgs::XycarUltrasonic_<ContainerAllocator> >
 {
   template<typename Stream> static void stream(Stream& s, const std::string& indent, const ::xycar_msgs::XycarUltrasonic_<ContainerAllocator>& v)
   {
-    if (false || !indent.empty())
-      s << std::endl;
     s << indent << "header: ";
+    s << std::endl;
     Printer< ::std_msgs::Header_<ContainerAllocator> >::stream(s, indent + "  ", v.header);
-    if (true || !indent.empty())
-      s << std::endl;
-    s << indent << "ranges: ";
-    if (v.ranges.empty() || false)
-      s << "[";
+    s << indent << "ranges[]" << std::endl;
     for (size_t i = 0; i < v.ranges.size(); ++i)
     {
-      if (false && i > 0)
-        s << ", ";
-      else if (!false)
-        s << std::endl << indent << "  -";
-      Printer< ::sensor_msgs::Range_<ContainerAllocator> >::stream(s, false ? std::string() : indent + "    ", v.ranges[i]);
+      s << indent << "  ranges[" << i << "]: ";
+      s << std::endl;
+      s << indent;
+      Printer< ::sensor_msgs::Range_<ContainerAllocator> >::stream(s, indent + "    ", v.ranges[i]);
     }
-    if (v.ranges.empty() || false)
-      s << "]";
   }
 };
 

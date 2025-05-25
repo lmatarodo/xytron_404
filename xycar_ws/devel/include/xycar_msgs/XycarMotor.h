@@ -217,16 +217,11 @@ struct Printer< ::xycar_msgs::XycarMotor_<ContainerAllocator> >
 {
   template<typename Stream> static void stream(Stream& s, const std::string& indent, const ::xycar_msgs::XycarMotor_<ContainerAllocator>& v)
   {
-    if (false || !indent.empty())
-      s << std::endl;
     s << indent << "header: ";
+    s << std::endl;
     Printer< ::std_msgs::Header_<ContainerAllocator> >::stream(s, indent + "  ", v.header);
-    if (true || !indent.empty())
-      s << std::endl;
     s << indent << "angle: ";
     Printer<float>::stream(s, indent + "  ", v.angle);
-    if (true || !indent.empty())
-      s << std::endl;
     s << indent << "speed: ";
     Printer<float>::stream(s, indent + "  ", v.speed);
   }
