@@ -1,0 +1,8 @@
+Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake /home/dylan/xytron/xycar_ws/src/kookmin/ROS-TCP-Endpoint -DCATKIN_INSTALL_INTO_PREFIX_ROOT=0 -DCMAKE_INSTALL_PREFIX=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint
+Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '0': /usr/bin/cmake /home/dylan/xytron/xycar_ws/src/kookmin/ROS-TCP-Endpoint -DCATKIN_INSTALL_INTO_PREFIX_ROOT=0 -DCMAKE_INSTALL_PREFIX=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint
+Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint -- -j16 -l16
+Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '0': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint -- -j16 -l16
+Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint --target tests -- -j16 -l16
+Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '0': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint --target tests -- -j16 -l16
+Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake --install /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint
+Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '1': /usr/bin/cmake --install /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint
