@@ -8,7 +8,7 @@ import struct
 
 
 class laneinfo(genpy.Message):
-  _md5sum = "44a42243e734addbc7ddd0e00184e0ab"
+  _md5sum = "6d0d242a09af36c4e0ef3fbf421ba402"
   _type = "xycar_msgs/laneinfo"
   _has_header = False  # flag to mark the presence of a Header object
   _full_text = """float32 left_x
@@ -16,9 +16,10 @@ float32 left_y
 float32 left_slope
 float32 right_x
 float32 right_y
-float32 right_slope """
-  __slots__ = ['left_x','left_y','left_slope','right_x','right_y','right_slope']
-  _slot_types = ['float32','float32','float32','float32','float32','float32']
+float32 right_slope
+int32 lane_number  # 1: 1차선, 2: 2차선 """
+  __slots__ = ['left_x','left_y','left_slope','right_x','right_y','right_slope','lane_number']
+  _slot_types = ['float32','float32','float32','float32','float32','float32','int32']
 
   def __init__(self, *args, **kwds):
     """
@@ -28,7 +29,7 @@ float32 right_slope """
     changes.  You cannot mix in-order arguments and keyword arguments.
 
     The available fields are:
-       left_x,left_y,left_slope,right_x,right_y,right_slope
+       left_x,left_y,left_slope,right_x,right_y,right_slope,lane_number
 
     :param args: complete set of field values, in .msg order
     :param kwds: use keyword arguments corresponding to message field names
@@ -49,6 +50,8 @@ float32 right_slope """
         self.right_y = 0.
       if self.right_slope is None:
         self.right_slope = 0.
+      if self.lane_number is None:
+        self.lane_number = 0
     else:
       self.left_x = 0.
       self.left_y = 0.
@@ -56,6 +59,7 @@ float32 right_slope """
       self.right_x = 0.
       self.right_y = 0.
       self.right_slope = 0.
+      self.lane_number = 0
 
   def _get_types(self):
     """
@@ -70,7 +74,7 @@ float32 right_slope """
     """
     try:
       _x = self
-      buff.write(_get_struct_6f().pack(_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope))
+      buff.write(_get_struct_6fi().pack(_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope, _x.lane_number))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -85,8 +89,8 @@ float32 right_slope """
       end = 0
       _x = self
       start = end
-      end += 24
-      (_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope,) = _get_struct_6f().unpack(str[start:end])
+      end += 28
+      (_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope, _x.lane_number,) = _get_struct_6fi().unpack(str[start:end])
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill
@@ -100,7 +104,7 @@ float32 right_slope """
     """
     try:
       _x = self
-      buff.write(_get_struct_6f().pack(_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope))
+      buff.write(_get_struct_6fi().pack(_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope, _x.lane_number))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -116,8 +120,8 @@ float32 right_slope """
       end = 0
       _x = self
       start = end
-      end += 24
-      (_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope,) = _get_struct_6f().unpack(str[start:end])
+      end += 28
+      (_x.left_x, _x.left_y, _x.left_slope, _x.right_x, _x.right_y, _x.right_slope, _x.lane_number,) = _get_struct_6fi().unpack(str[start:end])
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill
@@ -126,9 +130,9 @@ _struct_I = genpy.struct_I
 def _get_struct_I():
     global _struct_I
     return _struct_I
-_struct_6f = None
-def _get_struct_6f():
-    global _struct_6f
-    if _struct_6f is None:
-        _struct_6f = struct.Struct("<6f")
-    return _struct_6f
+_struct_6fi = None
+def _get_struct_6fi():
+    global _struct_6fi
+    if _struct_6fi is None:
+        _struct_6fi = struct.Struct("<6fi")
+    return _struct_6fi

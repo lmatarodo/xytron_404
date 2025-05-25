@@ -29,7 +29,8 @@ struct laneinfo_
     , left_slope(0.0)
     , right_x(0.0)
     , right_y(0.0)
-    , right_slope(0.0)  {
+    , right_slope(0.0)
+    , lane_number(0)  {
     }
   laneinfo_(const ContainerAllocator& _alloc)
     : left_x(0.0)
@@ -37,7 +38,8 @@ struct laneinfo_
     , left_slope(0.0)
     , right_x(0.0)
     , right_y(0.0)
-    , right_slope(0.0)  {
+    , right_slope(0.0)
+    , lane_number(0)  {
   (void)_alloc;
     }
 
@@ -60,6 +62,9 @@ struct laneinfo_
 
    typedef float _right_slope_type;
   _right_slope_type right_slope;
+
+   typedef int32_t _lane_number_type;
+  _lane_number_type lane_number;
 
 
 
@@ -95,7 +100,8 @@ bool operator==(const ::xycar_msgs::laneinfo_<ContainerAllocator1> & lhs, const 
     lhs.left_slope == rhs.left_slope &&
     lhs.right_x == rhs.right_x &&
     lhs.right_y == rhs.right_y &&
-    lhs.right_slope == rhs.right_slope;
+    lhs.right_slope == rhs.right_slope &&
+    lhs.lane_number == rhs.lane_number;
 }
 
 template<typename ContainerAllocator1, typename ContainerAllocator2>
@@ -152,12 +158,12 @@ struct MD5Sum< ::xycar_msgs::laneinfo_<ContainerAllocator> >
 {
   static const char* value()
   {
-    return "44a42243e734addbc7ddd0e00184e0ab";
+    return "6d0d242a09af36c4e0ef3fbf421ba402";
   }
 
   static const char* value(const ::xycar_msgs::laneinfo_<ContainerAllocator>&) { return value(); }
-  static const uint64_t static_value1 = 0x44a42243e734addbULL;
-  static const uint64_t static_value2 = 0xc7ddd0e00184e0abULL;
+  static const uint64_t static_value1 = 0x6d0d242a09af36c4ULL;
+  static const uint64_t static_value2 = 0xe0ef3fbf421ba402ULL;
 };
 
 template<class ContainerAllocator>
@@ -181,7 +187,8 @@ struct Definition< ::xycar_msgs::laneinfo_<ContainerAllocator> >
 "float32 left_slope\n"
 "float32 right_x\n"
 "float32 right_y\n"
-"float32 right_slope \n"
+"float32 right_slope\n"
+"int32 lane_number  # 1: 1차선, 2: 2차선 \n"
 ;
   }
 
@@ -206,6 +213,7 @@ namespace serialization
       stream.next(m.right_x);
       stream.next(m.right_y);
       stream.next(m.right_slope);
+      stream.next(m.lane_number);
     }
 
     ROS_DECLARE_ALLINONE_SERIALIZER
@@ -224,18 +232,34 @@ struct Printer< ::xycar_msgs::laneinfo_<ContainerAllocator> >
 {
   template<typename Stream> static void stream(Stream& s, const std::string& indent, const ::xycar_msgs::laneinfo_<ContainerAllocator>& v)
   {
+    if (false || !indent.empty())
+      s << std::endl;
     s << indent << "left_x: ";
     Printer<float>::stream(s, indent + "  ", v.left_x);
+    if (true || !indent.empty())
+      s << std::endl;
     s << indent << "left_y: ";
     Printer<float>::stream(s, indent + "  ", v.left_y);
+    if (true || !indent.empty())
+      s << std::endl;
     s << indent << "left_slope: ";
     Printer<float>::stream(s, indent + "  ", v.left_slope);
+    if (true || !indent.empty())
+      s << std::endl;
     s << indent << "right_x: ";
     Printer<float>::stream(s, indent + "  ", v.right_x);
+    if (true || !indent.empty())
+      s << std::endl;
     s << indent << "right_y: ";
     Printer<float>::stream(s, indent + "  ", v.right_y);
+    if (true || !indent.empty())
+      s << std::endl;
     s << indent << "right_slope: ";
     Printer<float>::stream(s, indent + "  ", v.right_slope);
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "lane_number: ";
+    Printer<int32_t>::stream(s, indent + "  ", v.lane_number);
   }
 };
 
