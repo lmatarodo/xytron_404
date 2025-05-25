@@ -36,7 +36,12 @@
     :reader right_slope
     :initarg :right_slope
     :type cl:float
-    :initform 0.0))
+    :initform 0.0)
+   (lane_number
+    :reader lane_number
+    :initarg :lane_number
+    :type cl:integer
+    :initform 0))
 )
 
 (cl:defclass laneinfo (<laneinfo>)
@@ -76,6 +81,11 @@
 (cl:defmethod right_slope-val ((m <laneinfo>))
   (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:right_slope-val is deprecated.  Use xycar_msgs-msg:right_slope instead.")
   (right_slope m))
+
+(cl:ensure-generic-function 'lane_number-val :lambda-list '(m))
+(cl:defmethod lane_number-val ((m <laneinfo>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:lane_number-val is deprecated.  Use xycar_msgs-msg:lane_number instead.")
+  (lane_number m))
 (cl:defmethod roslisp-msg-protocol:serialize ((msg <laneinfo>) ostream)
   "Serializes a message object of type '<laneinfo>"
   (cl:let ((bits (roslisp-utils:encode-single-float-bits (cl:slot-value msg 'left_x))))
@@ -108,6 +118,12 @@
     (cl:write-byte (cl:ldb (cl:byte 8 8) bits) ostream)
     (cl:write-byte (cl:ldb (cl:byte 8 16) bits) ostream)
     (cl:write-byte (cl:ldb (cl:byte 8 24) bits) ostream))
+  (cl:let* ((signed (cl:slot-value msg 'lane_number)) (unsigned (cl:if (cl:< signed 0) (cl:+ signed 4294967296) signed)))
+    (cl:write-byte (cl:ldb (cl:byte 8 0) unsigned) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 8) unsigned) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 16) unsigned) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 24) unsigned) ostream)
+    )
 )
 (cl:defmethod roslisp-msg-protocol:deserialize ((msg <laneinfo>) istream)
   "Deserializes a message object of type '<laneinfo>"
@@ -147,6 +163,12 @@
       (cl:setf (cl:ldb (cl:byte 8 16) bits) (cl:read-byte istream))
       (cl:setf (cl:ldb (cl:byte 8 24) bits) (cl:read-byte istream))
     (cl:setf (cl:slot-value msg 'right_slope) (roslisp-utils:decode-single-float-bits bits)))
+    (cl:let ((unsigned 0))
+      (cl:setf (cl:ldb (cl:byte 8 0) unsigned) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 8) unsigned) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 16) unsigned) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 24) unsigned) (cl:read-byte istream))
+      (cl:setf (cl:slot-value msg 'lane_number) (cl:if (cl:< unsigned 2147483648) unsigned (cl:- unsigned 4294967296))))
   msg
 )
 (cl:defmethod roslisp-msg-protocol:ros-datatype ((msg (cl:eql '<laneinfo>)))
@@ -157,18 +179,19 @@
   "xycar_msgs/laneinfo")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql '<laneinfo>)))
   "Returns md5sum for a message object of type '<laneinfo>"
-  "44a42243e734addbc7ddd0e00184e0ab")
+  "6d0d242a09af36c4e0ef3fbf421ba402")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql 'laneinfo)))
   "Returns md5sum for a message object of type 'laneinfo"
-  "44a42243e734addbc7ddd0e00184e0ab")
+  "6d0d242a09af36c4e0ef3fbf421ba402")
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql '<laneinfo>)))
   "Returns full string definition for message of type '<laneinfo>"
-  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope ~%~%"))
+  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope~%int32 lane_number  # 1: 1차선, 2: 2차선 ~%~%"))
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql 'laneinfo)))
   "Returns full string definition for message of type 'laneinfo"
-  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope ~%~%"))
+  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope~%int32 lane_number  # 1: 1차선, 2: 2차선 ~%~%"))
 (cl:defmethod roslisp-msg-protocol:serialization-length ((msg <laneinfo>))
   (cl:+ 0
+     4
      4
      4
      4
@@ -185,4 +208,5 @@
     (cl:cons ':right_x (right_x msg))
     (cl:cons ':right_y (right_y msg))
     (cl:cons ':right_slope (right_slope msg))
+    (cl:cons ':lane_number (lane_number msg))
 ))

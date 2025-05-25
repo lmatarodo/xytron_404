@@ -1,4 +1,4 @@
-prefix=/home/jungejblue/xytron_404/xycar_ws/install
+prefix=/home/taeyeong/xytron_404/xycar_ws/install
 
 Name: xycar_msgs
 Description: Description of xycar_msgs

@@ -1,7 +1,7 @@
 file(REMOVE_RECURSE
-  "/home/jungejblue/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarMotor.lisp"
-  "/home/jungejblue/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarUltrasonic.lisp"
-  "/home/jungejblue/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/laneinfo.lisp"
+  "/home/taeyeong/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarMotor.lisp"
+  "/home/taeyeong/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarUltrasonic.lisp"
+  "/home/taeyeong/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/laneinfo.lisp"
   "CMakeFiles/xycar_msgs_generate_messages_lisp"
 )
 

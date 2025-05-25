@@ -1,7 +1,7 @@
 file(REMOVE_RECURSE
-  "/home/jungejblue/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarMotor.h"
-  "/home/jungejblue/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarUltrasonic.h"
-  "/home/jungejblue/xytron_404/xycar_ws/devel/include/xycar_msgs/laneinfo.h"
+  "/home/taeyeong/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarMotor.h"
+  "/home/taeyeong/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarUltrasonic.h"
+  "/home/taeyeong/xytron_404/xycar_ws/devel/include/xycar_msgs/laneinfo.h"
   "CMakeFiles/xycar_msgs_generate_messages_cpp"
 )
 

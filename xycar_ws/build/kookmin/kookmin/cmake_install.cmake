@@ -1,8 +1,8 @@
-# Install script for directory: /home/jungejblue/xytron_404/xycar_ws/src/kookmin/kookmin
+# Install script for directory: /home/taeyeong/xytron_404/xycar_ws/src/kookmin/kookmin
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/jungejblue/xytron_404/xycar_ws/install")
+  set(CMAKE_INSTALL_PREFIX "/home/taeyeong/xytron_404/xycar_ws/install")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -38,17 +38,17 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/jungejblue/xytron_404/xycar_ws/build/kookmin/kookmin/catkin_generated/installspace/kookmin.pc")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/taeyeong/xytron_404/xycar_ws/build/kookmin/kookmin/catkin_generated/installspace/kookmin.pc")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/kookmin/cmake" TYPE FILE FILES
-    "/home/jungejblue/xytron_404/xycar_ws/build/kookmin/kookmin/catkin_generated/installspace/kookminConfig.cmake"
-    "/home/jungejblue/xytron_404/xycar_ws/build/kookmin/kookmin/catkin_generated/installspace/kookminConfig-version.cmake"
+    "/home/taeyeong/xytron_404/xycar_ws/build/kookmin/kookmin/catkin_generated/installspace/kookminConfig.cmake"
+    "/home/taeyeong/xytron_404/xycar_ws/build/kookmin/kookmin/catkin_generated/installspace/kookminConfig-version.cmake"
     )
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/kookmin" TYPE FILE FILES "/home/jungejblue/xytron_404/xycar_ws/src/kookmin/kookmin/package.xml")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/kookmin" TYPE FILE FILES "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/kookmin/package.xml")
 endif()
 

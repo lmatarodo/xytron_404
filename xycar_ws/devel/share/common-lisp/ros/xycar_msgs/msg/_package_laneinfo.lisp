@@ -11,4 +11,6 @@
           RIGHT_Y
           RIGHT_SLOPE-VAL
           RIGHT_SLOPE
+          LANE_NUMBER-VAL
+          LANE_NUMBER
 ))

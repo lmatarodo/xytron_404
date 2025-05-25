@@ -14,7 +14,7 @@
 
 (defclass xycar_msgs::laneinfo
   :super ros::object
-  :slots (_left_x _left_y _left_slope _right_x _right_y _right_slope ))
+  :slots (_left_x _left_y _left_slope _right_x _right_y _right_slope _lane_number ))
 
 (defmethod xycar_msgs::laneinfo
   (:init
@@ -25,6 +25,7 @@
     ((:right_x __right_x) 0.0)
     ((:right_y __right_y) 0.0)
     ((:right_slope __right_slope) 0.0)
+    ((:lane_number __lane_number) 0)
     )
    (send-super :init)
    (setq _left_x (float __left_x))
@@ -33,6 +34,7 @@
    (setq _right_x (float __right_x))
    (setq _right_y (float __right_y))
    (setq _right_slope (float __right_slope))
+   (setq _lane_number (round __lane_number))
    self)
   (:left_x
    (&optional __left_x)
@@ -52,6 +54,9 @@
   (:right_slope
    (&optional __right_slope)
    (if __right_slope (setq _right_slope __right_slope)) _right_slope)
+  (:lane_number
+   (&optional __lane_number)
+   (if __lane_number (setq _lane_number __lane_number)) _lane_number)
   (:serialization-length
    ()
    (+
@@ -66,6 +71,8 @@
     ;; float32 _right_y
     4
     ;; float32 _right_slope
+    4
+    ;; int32 _lane_number
     4
     ))
   (:serialize
@@ -84,6 +91,8 @@
        (sys::poke _right_y (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
      ;; float32 _right_slope
        (sys::poke _right_slope (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
+     ;; int32 _lane_number
+       (write-long _lane_number s)
      ;;
      (if (null strm) (get-output-stream-string s))))
   (:deserialize
@@ -100,11 +109,13 @@
      (setq _right_y (sys::peek buf ptr- :float)) (incf ptr- 4)
    ;; float32 _right_slope
      (setq _right_slope (sys::peek buf ptr- :float)) (incf ptr- 4)
+   ;; int32 _lane_number
+     (setq _lane_number (sys::peek buf ptr- :integer)) (incf ptr- 4)
    ;;
    self)
   )
 
-(setf (get xycar_msgs::laneinfo :md5sum-) "44a42243e734addbc7ddd0e00184e0ab")
+(setf (get xycar_msgs::laneinfo :md5sum-) "6d0d242a09af36c4e0ef3fbf421ba402")
 (setf (get xycar_msgs::laneinfo :datatype-) "xycar_msgs/laneinfo")
 (setf (get xycar_msgs::laneinfo :definition-)
       "float32 left_x
@@ -112,11 +123,12 @@ float32 left_y
 float32 left_slope
 float32 right_x
 float32 right_y
-float32 right_slope 
+float32 right_slope
+int32 lane_number  # 1: 1차선, 2: 2차선 
 ")
 
 
 
-(provide :xycar_msgs/laneinfo "44a42243e734addbc7ddd0e00184e0ab")
+(provide :xycar_msgs/laneinfo "6d0d242a09af36c4e0ef3fbf421ba402")
 
 

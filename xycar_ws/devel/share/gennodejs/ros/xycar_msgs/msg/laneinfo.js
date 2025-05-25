@@ -24,6 +24,7 @@ class laneinfo {
       this.right_x = null;
       this.right_y = null;
       this.right_slope = null;
+      this.lane_number = null;
     }
     else {
       if (initObj.hasOwnProperty('left_x')) {
@@ -62,6 +63,12 @@ class laneinfo {
       else {
         this.right_slope = 0.0;
       }
+      if (initObj.hasOwnProperty('lane_number')) {
+        this.lane_number = initObj.lane_number
+      }
+      else {
+        this.lane_number = 0;
+      }
     }
   }
 
@@ -79,6 +86,8 @@ class laneinfo {
     bufferOffset = _serializer.float32(obj.right_y, buffer, bufferOffset);
     // Serialize message field [right_slope]
     bufferOffset = _serializer.float32(obj.right_slope, buffer, bufferOffset);
+    // Serialize message field [lane_number]
+    bufferOffset = _serializer.int32(obj.lane_number, buffer, bufferOffset);
     return bufferOffset;
   }
 
@@ -98,11 +107,13 @@ class laneinfo {
     data.right_y = _deserializer.float32(buffer, bufferOffset);
     // Deserialize message field [right_slope]
     data.right_slope = _deserializer.float32(buffer, bufferOffset);
+    // Deserialize message field [lane_number]
+    data.lane_number = _deserializer.int32(buffer, bufferOffset);
     return data;
   }
 
   static getMessageSize(object) {
-    return 24;
+    return 28;
   }
 
   static datatype() {
@@ -112,7 +123,7 @@ class laneinfo {
 
   static md5sum() {
     //Returns md5sum for a message object
-    return '44a42243e734addbc7ddd0e00184e0ab';
+    return '6d0d242a09af36c4e0ef3fbf421ba402';
   }
 
   static messageDefinition() {
@@ -123,7 +134,8 @@ class laneinfo {
     float32 left_slope
     float32 right_x
     float32 right_y
-    float32 right_slope 
+    float32 right_slope
+    int32 lane_number  # 1: 1차선, 2: 2차선 
     `;
   }
 
@@ -173,6 +185,13 @@ class laneinfo {
     }
     else {
       resolved.right_slope = 0.0
+    }
+
+    if (msg.lane_number !== undefined) {
+      resolved.lane_number = msg.lane_number;
+    }
+    else {
+      resolved.lane_number = 0
     }
 
     return resolved;
