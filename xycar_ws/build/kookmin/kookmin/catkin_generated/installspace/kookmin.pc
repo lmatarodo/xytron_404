@@ -1,0 +1,8 @@
+prefix=/home/jungejblue/xytron_404/xycar_ws/install
+
+Name: kookmin
+Description: Description of kookmin
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
