@@ -114,6 +114,50 @@ class LaneDetect:
 
         return {'left_fitx': left_fitx, 'left_slope': left_fit[0], 'right_fitx': right_fitx, 'right_slope': right_fit[0], 'ploty': ploty}, out_img
 
+    def detect_lane_color(self, image, left_x, right_x):
+        try:
+            # HSV 색상 공간으로 변환
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            
+            # 흰색 범위 정의
+            white_lower = np.array([0, 0, 200])
+            white_upper = np.array([180, 30, 255])
+            
+            # 이미지 크기 확인
+            height, width = image.shape[:2]
+            
+            # 왼쪽 차선 영역이 이미지 내에 있는지 확인
+            left_x = int(left_x)
+            if 10 <= left_x < width - 10:
+                left_roi = hsv[int(height*0.8):, left_x-10:left_x+10]
+                left_white = cv2.inRange(left_roi, white_lower, white_upper)
+            else:
+                return 0  # 왼쪽 차선이 이미지 범위를 벗어남
+            
+            # 오른쪽 차선 영역이 이미지 내에 있는지 확인
+            right_x = int(right_x)
+            if 10 <= right_x < width - 10:
+                right_roi = hsv[int(height*0.8):, right_x-10:right_x+10]
+                right_white = cv2.inRange(right_roi, white_lower, white_upper)
+            else:
+                return 0  # 오른쪽 차선이 이미지 범위를 벗어남
+            
+            # 차선 번호 결정 (흰색 차선의 위치만으로 판단)
+            left_white_sum = np.sum(left_white)
+            right_white_sum = np.sum(right_white)
+            
+            # 흰색 차선이 더 많이 감지된 쪽을 기준으로 판단
+            if left_white_sum > right_white_sum:
+                return 1  # 흰색 차선이 왼쪽에 있으면 1차선
+            elif right_white_sum > left_white_sum:
+                return 2  # 흰색 차선이 오른쪽에 있으면 2차선
+            else:
+                return 0  # 불확실한 경우
+                
+        except Exception as e:
+            rospy.logwarn(f"차선 색상 감지 중 오류 발생: {str(e)}")
+            return 0  # 오류 발생 시 0 반환
+
     def process_image(self, img):
         # Step 1: BEV 변환
         warpped_img = self.warpping(img)
@@ -132,20 +176,34 @@ class LaneDetect:
         # Step 5: 슬라이딩 윈도우
         draw_info, out_img = self.slide_window_search(binary_img, left_base, right_base)
 
-        # Step 6: ROS 메시지 생성 및 발행
+        # Step 6: 차선 색상 감지
+        lane_number = self.detect_lane_color(warpped_img, draw_info['left_fitx'][-1], draw_info['right_fitx'][-1])
+        
+        # 차선 번호 출력
+        if lane_number == 1:
+            rospy.loginfo("현재 1차선 주행 중")
+        elif lane_number == 2:
+            rospy.loginfo("현재 2차선 주행 중")
+        else:
+            rospy.loginfo("차선 감지 불확실")
+
+        # Step 7: ROS 메시지 생성 및 발행
         pub_msg = laneinfo()
 
         # 왼쪽 차선 정보
-        pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])   #기존값 130.0
-        pub_msg.left_y = np.float32(draw_info['ploty'][-1])  
-        slope_left = draw_info['left_slope']  # 기울기
-        pub_msg.left_slope = np.float32(np.arctan(slope_left))  # 라디안 변환
+        pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])
+        pub_msg.left_y = np.float32(draw_info['ploty'][-1])
+        slope_left = draw_info['left_slope']
+        pub_msg.left_slope = np.float32(np.arctan(slope_left))
 
         # 오른쪽 차선 정보 
-        pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0 #기존값 130.0
-        pub_msg.right_y = np.float32(draw_info['ploty'][-1])  
-        slope_right = draw_info['right_slope']  # 기울기
-        pub_msg.right_slope = np.float32(np.arctan(slope_right))  # 라디안 변환
+        pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0
+        pub_msg.right_y = np.float32(draw_info['ploty'][-1])
+        slope_right = draw_info['right_slope']
+        pub_msg.right_slope = np.float32(np.arctan(slope_right))
+
+        # 차선 번호 설정
+        pub_msg.lane_number = lane_number
 
         # 이미지 크기 조절
         display_size = (640, 480)

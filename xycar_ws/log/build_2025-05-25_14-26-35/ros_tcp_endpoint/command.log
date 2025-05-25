@@ -1,0 +1,1 @@
+Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake /home/dylan/xytron/xycar_ws/src/kookmin/ROS-TCP-Endpoint -DCATKIN_INSTALL_INTO_PREFIX_ROOT=0 -DCMAKE_INSTALL_PREFIX=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint

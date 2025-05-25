@@ -1,0 +1,50 @@
+[0.009s] Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake /home/dylan/xytron/xycar_ws/src/kookmin/ROS-TCP-Endpoint -DCATKIN_INSTALL_INTO_PREFIX_ROOT=0 -DCMAKE_INSTALL_PREFIX=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint
+[0.027s] -- Using CATKIN_DEVEL_PREFIX: /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint/devel
+[0.027s] -- Using CMAKE_PREFIX_PATH: /opt/ros/noetic
+[0.028s] -- This workspace overlays: /opt/ros/noetic
+[0.052s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") 
+[0.052s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[0.052s] -- Using Debian Python package layout
+[0.076s] -- Found PY_em: /usr/lib/python3/dist-packages/em.py  
+[0.076s] -- Using empy: /usr/lib/python3/dist-packages/em.py
+[0.175s] -- Using CATKIN_ENABLE_TESTING: ON
+[0.175s] -- Call enable_testing()
+[0.179s] -- Using CATKIN_TEST_RESULTS_DIR: /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint/test_results
+[0.508s] -- Forcing gtest/gmock from source, though one was otherwise available.
+[0.508s] -- Found gtest sources under '/usr/src/googletest': gtests will be built
+[0.508s] -- Found gmock sources under '/usr/src/googletest': gmock will be built
+[0.532s] -- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") 
+[0.534s] -- Found Threads: TRUE  
+[0.538s] -- Using Python nosetests: /usr/bin/nosetests3
+[0.597s] -- catkin 0.8.10
+[0.597s] -- BUILD_SHARED_LIBS is on
+[1.499s] -- Configuring done
+[1.520s] -- Generating done
+[1.552s] -- Build files have been written to: /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint
+[1.570s] Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '0': /usr/bin/cmake /home/dylan/xytron/xycar_ws/src/kookmin/ROS-TCP-Endpoint -DCATKIN_INSTALL_INTO_PREFIX_ROOT=0 -DCMAKE_INSTALL_PREFIX=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint
+[1.571s] Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint -- -j16 -l16
+[1.745s] Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '0': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint -- -j16 -l16
+[1.749s] Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint --target tests -- -j16 -l16
+[1.838s] [35m[1mScanning dependencies of target tests[0m
+[1.855s] Built target tests
+[1.885s] Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '0': /usr/bin/cmake --build /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint --target tests -- -j16 -l16
+[1.906s] Invoking command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint': /usr/bin/cmake --install /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint
+[1.918s] -- Install configuration: ""
+[1.921s] + cd /home/dylan/xytron/xycar_ws/src/kookmin/ROS-TCP-Endpoint
+[1.921s] + mkdir -p /home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint/lib/python3/dist-packages
+[1.924s] + /usr/bin/env PYTHONPATH=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint/lib/python3/dist-packages:/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint/lib/python3/dist-packages:/opt/ros/noetic/lib/python3/dist-packages CATKIN_BINARY_DIR=/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint /usr/bin/python3 /home/dylan/xytron/xycar_ws/src/kookmin/ROS-TCP-Endpoint/setup.py egg_info --egg-base /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint build --build-base /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint install --root=/ --install-layout=deb --prefix=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint --install-scripts=/home/dylan/xytron/xycar_ws/install/ros_tcp_endpoint/bin
+[2.162s] usage: setup.py [global_opts] cmd1 [cmd1_opts] [cmd2 [cmd2_opts] ...]
+[2.163s]    or: setup.py --help [cmd1 cmd2 ...]
+[2.163s]    or: setup.py --help-commands
+[2.163s]    or: setup.py cmd --help
+[2.163s] 
+[2.163s] error: option --install-layout not recognized
+[2.187s] CMake Error at catkin_generated/safe_execute_install.cmake:4 (message):
+[2.187s]   
+[2.187s]   execute_process(/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint/catkin_generated/python_distutils_install.sh)
+[2.187s]   returned error code
+[2.187s] Call Stack (most recent call first):
+[2.187s]   cmake_install.cmake:41 (include)
+[2.187s] 
+[2.187s] 
+[2.189s] Invoked command in '/home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint' returned '1': /usr/bin/cmake --install /home/dylan/xytron/xycar_ws/build/ros_tcp_endpoint
