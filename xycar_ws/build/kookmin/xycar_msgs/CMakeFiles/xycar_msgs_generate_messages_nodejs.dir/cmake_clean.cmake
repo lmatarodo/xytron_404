@@ -1,4 +1,5 @@
 file(REMOVE_RECURSE
+  "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/ConeLanes.js"
   "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarMotor.js"
   "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarUltrasonic.js"
   "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js"

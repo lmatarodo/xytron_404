@@ -1,4 +1,5 @@
 file(REMOVE_RECURSE
+  "/home/taeyeong/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/ConeLanes.lisp"
   "/home/taeyeong/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarMotor.lisp"
   "/home/taeyeong/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/XycarUltrasonic.lisp"
   "/home/taeyeong/xytron_404/xycar_ws/devel/share/common-lisp/ros/xycar_msgs/msg/laneinfo.lisp"

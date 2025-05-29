@@ -14,6 +14,7 @@ add_message_files(
   XycarMotor.msg
   XycarUltrasonic.msg
   laneinfo.msg
+  ConeLanes.msg
 )
 
 ## Generate added messages and services with any dependencies

@@ -42,6 +42,7 @@ if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_
     "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarMotor.msg"
     "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg"
     "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg"
+    "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg"
     )
 endif()
 

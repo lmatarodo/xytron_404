@@ -14,6 +14,7 @@ from xycar_msgs.msg import XycarMotor
 from xycar_msgs.msg import laneinfo
 from cv_bridge import CvBridge
 from sensor_msgs.msg import LaserScan
+from xycar_msgs.msg import ConeLanes
 import matplotlib.pyplot as plt
 
 #=============================================

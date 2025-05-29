@@ -1,6 +1,6 @@
 # generated from genmsg/cmake/pkg-genmsg.cmake.em
 
-message(STATUS "xycar_msgs: 3 messages, 0 services")
+message(STATUS "xycar_msgs: 4 messages, 0 services")
 
 set(MSG_I_FLAGS "-Ixycar_msgs:/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg;-Istd_msgs:/opt/ros/noetic/share/std_msgs/cmake/../msg;-Isensor_msgs:/opt/ros/noetic/share/sensor_msgs/cmake/../msg;-Igeometry_msgs:/opt/ros/noetic/share/geometry_msgs/cmake/../msg")
 
@@ -32,6 +32,11 @@ add_custom_target(_xycar_msgs_generate_messages_check_deps_${_filename}
   COMMAND ${CATKIN_ENV} ${PYTHON_EXECUTABLE} ${GENMSG_CHECK_DEPS_SCRIPT} "xycar_msgs" "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg" ""
 )
 
+get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg" NAME_WE)
+add_custom_target(_xycar_msgs_generate_messages_check_deps_${_filename}
+  COMMAND ${CATKIN_ENV} ${PYTHON_EXECUTABLE} ${GENMSG_CHECK_DEPS_SCRIPT} "xycar_msgs" "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg" "std_msgs/Header:geometry_msgs/Point"
+)
+
 #
 #  langs = gencpp;geneus;genlisp;gennodejs;genpy
 #
@@ -56,6 +61,12 @@ _generate_msg_cpp(xycar_msgs
   ""
   ${CATKIN_DEVEL_PREFIX}/${gencpp_INSTALL_DIR}/xycar_msgs
 )
+_generate_msg_cpp(xycar_msgs
+  "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg"
+  "${MSG_I_FLAGS}"
+  "/opt/ros/noetic/share/std_msgs/cmake/../msg/Header.msg;/opt/ros/noetic/share/geometry_msgs/cmake/../msg/Point.msg"
+  ${CATKIN_DEVEL_PREFIX}/${gencpp_INSTALL_DIR}/xycar_msgs
+)
 
 ### Generating Services
 
@@ -76,6 +87,8 @@ add_dependencies(xycar_msgs_generate_messages_cpp _xycar_msgs_generate_messages_
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_cpp _xycar_msgs_generate_messages_check_deps_${_filename})
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg" NAME_WE)
+add_dependencies(xycar_msgs_generate_messages_cpp _xycar_msgs_generate_messages_check_deps_${_filename})
+get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_cpp _xycar_msgs_generate_messages_check_deps_${_filename})
 
 # target for backward compatibility
@@ -105,6 +118,12 @@ _generate_msg_eus(xycar_msgs
   ""
   ${CATKIN_DEVEL_PREFIX}/${geneus_INSTALL_DIR}/xycar_msgs
 )
+_generate_msg_eus(xycar_msgs
+  "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg"
+  "${MSG_I_FLAGS}"
+  "/opt/ros/noetic/share/std_msgs/cmake/../msg/Header.msg;/opt/ros/noetic/share/geometry_msgs/cmake/../msg/Point.msg"
+  ${CATKIN_DEVEL_PREFIX}/${geneus_INSTALL_DIR}/xycar_msgs
+)
 
 ### Generating Services
 
@@ -125,6 +144,8 @@ add_dependencies(xycar_msgs_generate_messages_eus _xycar_msgs_generate_messages_
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_eus _xycar_msgs_generate_messages_check_deps_${_filename})
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg" NAME_WE)
+add_dependencies(xycar_msgs_generate_messages_eus _xycar_msgs_generate_messages_check_deps_${_filename})
+get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_eus _xycar_msgs_generate_messages_check_deps_${_filename})
 
 # target for backward compatibility
@@ -154,6 +175,12 @@ _generate_msg_lisp(xycar_msgs
   ""
   ${CATKIN_DEVEL_PREFIX}/${genlisp_INSTALL_DIR}/xycar_msgs
 )
+_generate_msg_lisp(xycar_msgs
+  "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg"
+  "${MSG_I_FLAGS}"
+  "/opt/ros/noetic/share/std_msgs/cmake/../msg/Header.msg;/opt/ros/noetic/share/geometry_msgs/cmake/../msg/Point.msg"
+  ${CATKIN_DEVEL_PREFIX}/${genlisp_INSTALL_DIR}/xycar_msgs
+)
 
 ### Generating Services
 
@@ -174,6 +201,8 @@ add_dependencies(xycar_msgs_generate_messages_lisp _xycar_msgs_generate_messages
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_lisp _xycar_msgs_generate_messages_check_deps_${_filename})
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg" NAME_WE)
+add_dependencies(xycar_msgs_generate_messages_lisp _xycar_msgs_generate_messages_check_deps_${_filename})
+get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_lisp _xycar_msgs_generate_messages_check_deps_${_filename})
 
 # target for backward compatibility
@@ -203,6 +232,12 @@ _generate_msg_nodejs(xycar_msgs
   ""
   ${CATKIN_DEVEL_PREFIX}/${gennodejs_INSTALL_DIR}/xycar_msgs
 )
+_generate_msg_nodejs(xycar_msgs
+  "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg"
+  "${MSG_I_FLAGS}"
+  "/opt/ros/noetic/share/std_msgs/cmake/../msg/Header.msg;/opt/ros/noetic/share/geometry_msgs/cmake/../msg/Point.msg"
+  ${CATKIN_DEVEL_PREFIX}/${gennodejs_INSTALL_DIR}/xycar_msgs
+)
 
 ### Generating Services
 
@@ -223,6 +258,8 @@ add_dependencies(xycar_msgs_generate_messages_nodejs _xycar_msgs_generate_messag
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_nodejs _xycar_msgs_generate_messages_check_deps_${_filename})
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg" NAME_WE)
+add_dependencies(xycar_msgs_generate_messages_nodejs _xycar_msgs_generate_messages_check_deps_${_filename})
+get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_nodejs _xycar_msgs_generate_messages_check_deps_${_filename})
 
 # target for backward compatibility
@@ -252,6 +289,12 @@ _generate_msg_py(xycar_msgs
   ""
   ${CATKIN_DEVEL_PREFIX}/${genpy_INSTALL_DIR}/xycar_msgs
 )
+_generate_msg_py(xycar_msgs
+  "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg"
+  "${MSG_I_FLAGS}"
+  "/opt/ros/noetic/share/std_msgs/cmake/../msg/Header.msg;/opt/ros/noetic/share/geometry_msgs/cmake/../msg/Point.msg"
+  ${CATKIN_DEVEL_PREFIX}/${genpy_INSTALL_DIR}/xycar_msgs
+)
 
 ### Generating Services
 
@@ -272,6 +315,8 @@ add_dependencies(xycar_msgs_generate_messages_py _xycar_msgs_generate_messages_c
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_py _xycar_msgs_generate_messages_check_deps_${_filename})
 get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg" NAME_WE)
+add_dependencies(xycar_msgs_generate_messages_py _xycar_msgs_generate_messages_check_deps_${_filename})
+get_filename_component(_filename "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg" NAME_WE)
 add_dependencies(xycar_msgs_generate_messages_py _xycar_msgs_generate_messages_check_deps_${_filename})
 
 # target for backward compatibility

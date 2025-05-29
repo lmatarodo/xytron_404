@@ -1,6 +1,6 @@
 # generated from genmsg/cmake/pkg-genmsg.context.in
 
-messages_str = "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarMotor.msg;/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg;/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg"
+messages_str = "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarMotor.msg;/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/XycarUltrasonic.msg;/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/laneinfo.msg;/home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs/msg/ConeLanes.msg"
 services_str = ""
 pkg_name = "xycar_msgs"
 dependencies_str = "std_msgs;sensor_msgs"

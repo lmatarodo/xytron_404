@@ -1,4 +1,5 @@
 file(REMOVE_RECURSE
+  "/home/taeyeong/xytron_404/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/_ConeLanes.py"
   "/home/taeyeong/xytron_404/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/_XycarMotor.py"
   "/home/taeyeong/xytron_404/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/_XycarUltrasonic.py"
   "/home/taeyeong/xytron_404/xycar_ws/devel/lib/python3/dist-packages/xycar_msgs/msg/__init__.py"
