@@ -2,42 +2,44 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-# import cv2 # 현재 직접 사용되지 않음
 import rospy
-# import time # 현재 코드에서 직접 사용되지 않음
-# import os   # 현재 코드에서 직접 사용되지 않음
 import math
 from sensor_msgs.msg import LaserScan
-from geometry_msgs.msg import Point # ConeLanes 메시지에 사용
+from geometry_msgs.msg import Point
 from xycar_msgs.msg import ConeLanes
 import std_msgs.msg
-
-# 시각화용 (디버깅 시 유용)
 import matplotlib.pyplot as plt
 
 # =============================================
-# 파라미터 (이전과 동일)
+# 파라미터 
 # =============================================
 LIDAR_ANGLE_RANGE_HALF = 95 
-LIDAR_MAX_DIST = 15.0 # 이전 코드에서 사용자가 늘린 값 유지
-LIDAR_MIN_DIST = 0.15 
-CONE_CLUSTER_RADIUS = 0.20 # 이전 코드에서 사용자가 수정한 값 유지
+LIDAR_MAX_DIST = 12.0 
+CONE_CLUSTER_RADIUS = 0.3 
 
-CHAIN_INITIAL_SEED_Y_MIN = 0.5 # 이전 코드에서 사용자가 수정한 값 유지
-CHAIN_INITIAL_SEED_Y_MAX = 4.0   # 이전 코드에서 사용자가 수정한 값 유지
-CHAIN_MAX_NEXT_CONE_DIST = 5.0   # 이전 코드에서 사용자가 수정한 값 유지
-CHAIN_MIN_NEXT_CONE_DIST_SQ = 0.05**2
-CHAIN_MAX_LATERAL_DEV_RATIO = 0.9 
-CHAIN_MAX_HEADING_CHANGE_RAD = np.radians(80) 
+CHAIN_INITIAL_SEED_Y_MAX = 4.0   
+CHAIN_MAX_NEXT_CONE_DIST = 5.0   # 필터링 조건
+CHAIN_MAX_HEADING_CHANGE_RAD = np.radians(80) # 필터링 조건
 CHAIN_MIN_POINTS_FOR_LANE = 2
 
-EXPECTED_LANE_WIDTH_APPROX = 4.0 
+EXPECTED_LANE_WIDTH_APPROX = 3.5 
 X_SEED_CENTER_THRESHOLD = 0.05
 
-ENABLE_MATPLOTLIB_VIZ = True # 시각화 여부 (True 또는 False로 변경 가능)
+# === 새로운 덧셈 방식 비용 함수 가중치 ===
+ADD_COST_WEIGHT_DISTANCE = 1.0  # 거리제곱 오차에 대한 가중치
+ADD_COST_WEIGHT_ANGLE = 10.0   # 각도변화량 오차에 대한 가중치
+ADD_COST_WEIGHT_LATERAL = 2.0  # 측면 거리 절대값에 대한 가중치
+
+# [새로 추가됨] 다음 콘 연결을 위한 최대 허용 비용
+# 이 값은 ADD_COST_WEIGHT_... 가중치들과 실제 오차 값들의 스케일을 고려하여 튜닝해야 합니다.
+# 예시: 매우 좋은 연결은 2~5 정도의 비용, 조금 나쁜 연결은 10~20, 그 이상은 부적합으로 판단 가능
+MAX_ACCEPTABLE_CONNECTION_COST = 20.0 
+# ==========================================
+
+ENABLE_MATPLOTLIB_VIZ = True 
 
 if ENABLE_MATPLOTLIB_VIZ:
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(10, 10)) 
     if LIDAR_ANGLE_RANGE_HALF <= 90:
         plot_x_max_abs = LIDAR_MAX_DIST * math.sin(math.radians(LIDAR_ANGLE_RANGE_HALF))
     else:
@@ -45,34 +47,34 @@ if ENABLE_MATPLOTLIB_VIZ:
     ax.set_xlim(-(plot_x_max_abs + 0.5), plot_x_max_abs + 0.5)
     ax.set_ylim(-0.5, LIDAR_MAX_DIST + 0.5)
     ax.set_aspect('equal', adjustable='box')
-    ax.set_title("Cone Lane Detector Viz") # 제목에서 (Publisher Disabled) 제거
+    ax.set_title("Cone Lane Detector Viz (Max Cost Threshold)")
     ax.set_xlabel("X (m) - Lateral")
     ax.set_ylabel("Y (m) - Forward")
     ax.grid(True)
-    raw_lidar_points_plot, = ax.plot([], [], 'ko', markersize=3, label='Clustered Pts')
+    raw_lidar_points_plot, = ax.plot([], [], 'ko', markersize=3, label='Clustered Pts (All)')
     left_lane_plot, = ax.plot([], [], 'r.-', markersize=5, linewidth=1.5, label='Left Lane Fit')
     right_lane_plot, = ax.plot([], [], 'b.-', markersize=5, linewidth=1.5, label='Right Lane Fit')
     center_path_plot, = ax.plot([], [], 'g--', linewidth=1.5, label='Center Path')
+    raw_left_lane_points_plot, = ax.plot([], [], 'rx', markersize=8, markeredgewidth=2, label='Raw Left Cones')  
+    raw_right_lane_points_plot, = ax.plot([], [], 'bx', markersize=8, markeredgewidth=2, label='Raw Right Cones') 
     ax.legend(fontsize='small', loc='upper right')
 
 # =============================================
 # 유틸리티 함수 (이전과 동일)
 # =============================================
 def convert_lidar_to_xy(current_ranges_data):
-    # (이전 코드와 동일 - 사용자 코드의 X좌표 부호 반전 유지)
     if current_ranges_data is None or len(current_ranges_data) != 360: return np.array([]) 
     indices_left = np.arange(0, LIDAR_ANGLE_RANGE_HALF + 1); indices_right = np.arange(360 - LIDAR_ANGLE_RANGE_HALF, 360) 
     valid_angular_indices = np.unique(np.concatenate((indices_left, indices_right)))
     selected_ranges = current_ranges_data[valid_angular_indices]; selected_angles_rad = np.radians(valid_angular_indices.astype(float)) 
-    valid_value_indices = np.where(np.isfinite(selected_ranges) & (selected_ranges > LIDAR_MIN_DIST) & (selected_ranges < LIDAR_MAX_DIST))[0]
+    valid_value_indices = np.where(np.isfinite(selected_ranges) & (selected_ranges < LIDAR_MAX_DIST))[0]
     if len(valid_value_indices) == 0: return np.array([])
     final_ranges = selected_ranges[valid_value_indices]; final_angles_rad = selected_angles_rad[valid_value_indices]
-    x_coords = final_ranges * (-1) * np.sin(final_angles_rad) # 사용자 코드의 X좌표 부호 반전 유지
+    x_coords = final_ranges * (-1) * np.sin(final_angles_rad) 
     y_coords = final_ranges * np.cos(final_angles_rad)
     return np.column_stack((x_coords, y_coords))
 
 def cluster_lidar_points(points, cluster_radius_sq):
-    # (이전 코드와 동일)
     if points.shape[0] == 0: return np.array([])
     n_points = points.shape[0]; processed_indices = np.zeros(n_points, dtype=bool); cluster_centers = []
     for i in range(n_points):
@@ -89,7 +91,6 @@ def cluster_lidar_points(points, cluster_radius_sq):
     return np.array(cluster_centers)
 
 def fit_polynomial_to_lane(lane_points_xy_data, degree=1):
-    # (이전 코드와 동일)
     min_pts_for_degree = degree + 1 
     if lane_points_xy_data is None or lane_points_xy_data.shape[0] < min_pts_for_degree: return None
     x_values = lane_points_xy_data[:, 0]; y_values = lane_points_xy_data[:, 1]
@@ -98,7 +99,6 @@ def fit_polynomial_to_lane(lane_points_xy_data, degree=1):
     return poly_coeffs
 
 def _calculate_angle_diff(vec1, vec2):
-    # (이전 코드와 동일)
     angle1 = math.atan2(vec1[1], vec1[0]); angle2 = math.atan2(vec2[1], vec2[0])
     diff = angle2 - angle1
     while diff > math.pi: diff -= 2 * math.pi
@@ -109,17 +109,19 @@ def _calculate_angle_diff(vec1, vec2):
 # 핵심 차선 감지 로직 (detect_lanes_from_cones)
 # =============================================
 def detect_lanes_from_cones(xy_coords_data_raw):
-    # (이전 코드와 동일 - NumPy 배열로 좌표 리스트 반환)
     clustered_cones = cluster_lidar_points(xy_coords_data_raw, CONE_CLUSTER_RADIUS**2)
     num_total_cones = clustered_cones.shape[0]
     sampled_left_lane_coords = []; sampled_right_lane_coords = []; center_path_coords = []
     left_lane_detected_flag = False; right_lane_detected_flag = False
     left_poly_deg = 0; right_poly_deg = 0
+    raw_left_cones_for_plot = np.array([])
+    raw_right_cones_for_plot = np.array([])
 
     if num_total_cones < CHAIN_MIN_POINTS_FOR_LANE:
         return np.array(sampled_left_lane_coords), np.array(sampled_right_lane_coords), \
                np.array(center_path_coords), left_lane_detected_flag, \
-               right_lane_detected_flag, left_poly_deg, right_poly_deg
+               right_lane_detected_flag, left_poly_deg, right_poly_deg, \
+               raw_left_cones_for_plot, raw_right_cones_for_plot
 
     is_cone_used = np.zeros(num_total_cones, dtype=bool)
     
@@ -128,29 +130,51 @@ def detect_lanes_from_cones(xy_coords_data_raw):
         current_chain = [all_cones[start_cone_idx]]; used_mask[start_cone_idx] = True
         last_added_cone = all_cones[start_cone_idx]; previous_segment_vector = None 
         while True:
-            best_next_cone_idx = -1; min_cost = float('inf')
+            best_next_cone_idx = -1
+            min_cost = float('inf') 
+
             for i in range(num_total_cones):
                 if used_mask[i]: continue
                 candidate_cone = all_cones[i]; vector_to_candidate = candidate_cone - last_added_cone
                 dist_sq_to_candidate = np.sum(vector_to_candidate**2)
-                if not (CHAIN_MIN_NEXT_CONE_DIST_SQ < dist_sq_to_candidate < CHAIN_MAX_NEXT_CONE_DIST**2): continue
-                if vector_to_candidate[1] < -0.3 : continue
-                if abs(vector_to_candidate[0]) > CHAIN_MAX_LATERAL_DEV_RATIO * abs(vector_to_candidate[1]) + 0.4: continue
-                cost = dist_sq_to_candidate 
+                lateral_distance_to_candidate = abs(vector_to_candidate[0]) 
+
+                if dist_sq_to_candidate >= CHAIN_MAX_NEXT_CONE_DIST**2: continue
+                
+                angle_change = 0.0
                 if previous_segment_vector is not None:
                     angle_change = _calculate_angle_diff(previous_segment_vector, vector_to_candidate)
-                    if abs(angle_change) > CHAIN_MAX_HEADING_CHANGE_RAD: cost *= 10 
-                    else: cost *= (1 + abs(angle_change) / math.pi) 
-                if cost < min_cost: min_cost = cost; best_next_cone_idx = i
+                    if abs(angle_change) > CHAIN_MAX_HEADING_CHANGE_RAD:
+                        continue 
+                
+                current_candidate_cost = 0.0
+                current_candidate_cost += ADD_COST_WEIGHT_DISTANCE * dist_sq_to_candidate
+                if previous_segment_vector is not None: 
+                    current_candidate_cost += ADD_COST_WEIGHT_ANGLE * abs(angle_change)
+                current_candidate_cost += ADD_COST_WEIGHT_LATERAL * lateral_distance_to_candidate
+                
+                if current_candidate_cost < min_cost:
+                    min_cost = current_candidate_cost
+                    best_next_cone_idx = i
+            
+            # --- [새로 추가된 로직] 최저 비용이 임계값을 초과하는지 확인 ---
+            if best_next_cone_idx != -1: # 일단 후보를 찾았더라도
+                if min_cost > MAX_ACCEPTABLE_CONNECTION_COST:
+                    best_next_cone_idx = -1 # 비용이 너무 크면, 못 찾은 것으로 처리
+            # --- 로직 추가 끝 ---
+
             if best_next_cone_idx != -1:
                 new_cone_to_add = all_cones[best_next_cone_idx]; current_chain.append(new_cone_to_add)
                 used_mask[best_next_cone_idx] = True
-                if len(current_chain) > 1: previous_segment_vector = new_cone_to_add - last_added_cone
-                last_added_cone = new_cone_to_add
-            else: break 
+                if len(current_chain) > 1: 
+                    previous_segment_vector = new_cone_to_add - last_added_cone 
+                last_added_cone = new_cone_to_add 
+            else: 
+                break 
         return current_chain
 
-    seed_candidates_in_y_zone = clustered_cones[(clustered_cones[:, 1] >= CHAIN_INITIAL_SEED_Y_MIN) & (clustered_cones[:, 1] <= CHAIN_INITIAL_SEED_Y_MAX)]
+    # (seed_candidates_in_y_zone 이하 로직 동일)
+    seed_candidates_in_y_zone = clustered_cones[clustered_cones[:, 1] <= CHAIN_INITIAL_SEED_Y_MAX]
     if seed_candidates_in_y_zone.shape[0] == 0: seed_candidates_in_y_zone = clustered_cones 
     left_seed_idx_in_clustered_cones = None; right_seed_idx_in_clustered_cones = None
     if seed_candidates_in_y_zone.shape[0] > 0:
@@ -161,24 +185,27 @@ def detect_lanes_from_cones(xy_coords_data_raw):
             temp_idx = np.where((clustered_cones == sorted_left_seeds[0]).all(axis=1))[0]
             if temp_idx.size > 0: left_seed_idx_in_clustered_cones = temp_idx[0]
         if right_seed_pool.shape[0] > 0:
-            sorted_right_seeds = right_seed_pool[np.lexsort((-right_seed_pool[:, 0], right_seed_pool[:, 1]))]
+            sorted_right_seeds = right_seed_pool[np.lexsort((-right_seed_pool[:, 0], right_seed_pool[:, 1]))] 
             temp_idx = np.where((clustered_cones == sorted_right_seeds[0]).all(axis=1))[0]
             if temp_idx.size > 0: right_seed_idx_in_clustered_cones = temp_idx[0]
 
     final_left_lane_pts = build_one_lane_chain(left_seed_idx_in_clustered_cones, clustered_cones, is_cone_used)
     final_right_lane_pts = build_one_lane_chain(right_seed_idx_in_clustered_cones, clustered_cones, is_cone_used)
-    left_pts_for_fit_np = np.array(final_left_lane_pts); right_pts_for_fit_np = np.array(final_right_lane_pts)
+    
+    raw_left_cones_for_plot = np.array(final_left_lane_pts)
+    raw_right_cones_for_plot = np.array(final_right_lane_pts)
+
     left_poly_coeffs = None; right_poly_coeffs = None
 
-    if left_pts_for_fit_np.shape[0] >= CHAIN_MIN_POINTS_FOR_LANE:
-        degree_left = min(3, left_pts_for_fit_np.shape[0] - 1) 
+    if raw_left_cones_for_plot.shape[0] >= CHAIN_MIN_POINTS_FOR_LANE:
+        degree_left = min(3, raw_left_cones_for_plot.shape[0] - 1) 
         if degree_left > 0 : 
-            left_poly_coeffs = fit_polynomial_to_lane(left_pts_for_fit_np, degree=degree_left)
+            left_poly_coeffs = fit_polynomial_to_lane(raw_left_cones_for_plot, degree=degree_left)
             if left_poly_coeffs is not None: left_lane_detected_flag = True; left_poly_deg = degree_left
-    if right_pts_for_fit_np.shape[0] >= CHAIN_MIN_POINTS_FOR_LANE:
-        degree_right = min(3, right_pts_for_fit_np.shape[0] - 1)
+    if raw_right_cones_for_plot.shape[0] >= CHAIN_MIN_POINTS_FOR_LANE:
+        degree_right = min(3, raw_right_cones_for_plot.shape[0] - 1)
         if degree_right > 0: 
-            right_poly_coeffs = fit_polynomial_to_lane(right_pts_for_fit_np, degree=degree_right)
+            right_poly_coeffs = fit_polynomial_to_lane(raw_right_cones_for_plot, degree=degree_right)
             if right_poly_coeffs is not None: right_lane_detected_flag = True; right_poly_deg = degree_right
     
     path_sample_y_values = np.linspace(0.1, LIDAR_MAX_DIST * 0.9, 15) 
@@ -197,18 +224,18 @@ def detect_lanes_from_cones(xy_coords_data_raw):
     
     return np.array(sampled_left_lane_coords), np.array(sampled_right_lane_coords), \
            np.array(center_path_coords), left_lane_detected_flag, \
-           right_lane_detected_flag, left_poly_deg, right_poly_deg
+           right_lane_detected_flag, left_poly_deg, right_poly_deg, \
+           raw_left_cones_for_plot, raw_right_cones_for_plot
 
 # =============================================
-# ROS 노드 메인 로직
+# ROS 노드 메인 로직 (이하 이전과 동일)
 # =============================================
 class ConeLaneDetector:
     def __init__(self):
         rospy.init_node('cone_lane_detector_node', anonymous=False)
         
         self.lidar_subscriber = rospy.Subscriber('/scan', LaserScan, self.lidar_callback, queue_size=1)
-        # *** 다음 라인의 'your_package_name'을 실제 패키지 이름으로 변경해주세요 ***
-        self.cone_lanes_publisher = rospy.Publisher('/cone_lanes', ConeLanes, queue_size=1) # *** 발행 활성화 ***
+        self.cone_lanes_publisher = rospy.Publisher('/cone_lanes', ConeLanes, queue_size=1) 
         
         self.current_lidar_ranges = None
         self.node_rate = rospy.Rate(10) # Hz
@@ -216,29 +243,27 @@ class ConeLaneDetector:
         if ENABLE_MATPLOTLIB_VIZ:
             plt.ion()
             plt.show()
-        rospy.loginfo("Cone Lane Detector Node Initialized (Publisher Enabled).") # 메시지 변경
+        rospy.loginfo("Cone Lane Detector Node Initialized (Publisher Enabled).")
 
     def lidar_callback(self, msg):
         self.current_lidar_ranges = np.array(msg.ranges[0:360])
 
     def run(self):
-        rospy.loginfo("Cone Lane Detector Node Running...") # 메시지 변경
+        rospy.loginfo("Cone Lane Detector Node Running...")
         while not rospy.is_shutdown():
             if self.current_lidar_ranges is not None:
                 xy_raw_points = convert_lidar_to_xy(self.current_lidar_ranges)
                 
-                # detect_lanes_from_cones는 NumPy 배열을 반환
                 s_left_coords_np, s_right_coords_np, center_coords_np, \
-                l_found, r_found, l_deg, r_deg = detect_lanes_from_cones(xy_raw_points)
+                l_found, r_found, l_deg, r_deg, \
+                raw_left_cones_np, raw_right_cones_np = detect_lanes_from_cones(xy_raw_points)
                 
-                # ConeLanes 메시지 생성 및 채우기
                 cone_lanes_msg = ConeLanes()
                 cone_lanes_msg.header = std_msgs.msg.Header()
                 cone_lanes_msg.header.stamp = rospy.Time.now()
-                cone_lanes_msg.header.frame_id = "base_link" # 또는 라이다 프레임 ID
+                cone_lanes_msg.header.frame_id = "base_link" 
 
                 cone_lanes_msg.left_lane_detected = l_found
-                # NumPy 배열을 geometry_msgs/Point 리스트로 변환
                 if s_left_coords_np.size > 0:
                     cone_lanes_msg.left_lane_points = [Point(x=p[0], y=p[1], z=0.0) for p in s_left_coords_np]
                 else:
@@ -257,9 +282,8 @@ class ConeLaneDetector:
                 else:
                     cone_lanes_msg.center_path = []
                 
-                self.cone_lanes_publisher.publish(cone_lanes_msg) # *** 발행 활성화 ***
+                self.cone_lanes_publisher.publish(cone_lanes_msg)
 
-                # 시각화 로직
                 if ENABLE_MATPLOTLIB_VIZ:
                     clustered_viz = cluster_lidar_points(xy_raw_points, CONE_CLUSTER_RADIUS**2)
                     if clustered_viz.shape[0] > 0:
@@ -267,7 +291,6 @@ class ConeLaneDetector:
                     else:
                         raw_lidar_points_plot.set_data([],[])
                     
-                    # 시각화에는 NumPy 배열 직접 사용
                     if l_found and s_left_coords_np.shape[0] > 0:
                         left_lane_plot.set_data(s_left_coords_np[:,0], s_left_coords_np[:,1])
                     else:
@@ -277,6 +300,16 @@ class ConeLaneDetector:
                         right_lane_plot.set_data(s_right_coords_np[:,0], s_right_coords_np[:,1])
                     else:
                         right_lane_plot.set_data([],[])
+
+                    if l_found and raw_left_cones_np.shape[0] > 0:
+                        raw_left_lane_points_plot.set_data(raw_left_cones_np[:,0], raw_left_cones_np[:,1])
+                    else:
+                        raw_left_lane_points_plot.set_data([],[])
+
+                    if r_found and raw_right_cones_np.shape[0] > 0:
+                        raw_right_lane_points_plot.set_data(raw_right_cones_np[:,0], raw_right_cones_np[:,1])
+                    else:
+                        raw_right_lane_points_plot.set_data([],[])
                     
                     if center_coords_np.shape[0] > 0:
                         center_path_plot.set_data(center_coords_np[:,0], center_coords_np[:,1])
@@ -287,7 +320,7 @@ class ConeLaneDetector:
                         fig.canvas.draw_idle()
                         plt.pause(0.001)
                     except Exception: 
-                        pass # GUI 관련 예외는 계속 무시
+                        pass 
             
             self.node_rate.sleep()
 
