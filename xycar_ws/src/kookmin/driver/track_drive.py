@@ -54,22 +54,12 @@ last_lane_change_time = 0  # 마지막 차선 변경 시간
 LANE_CHANGE_DURATION = 1.65  #3.0  차선 변경 소요 시간 (초)
 PATH_POINTS = 20  #30 # 경로 생성 시 샘플링할 포인트 수
 LANE_CHANGE_DISTANCE = 230 #200  # 차선 변경 시 전방 주시 거리
-CONE_SPEED = 8  # 라바콘 감지 시 속도 제어
-CONE_SPEED_DURATION = 5.0  # 라바콘 감지 후 속도 유지 시간
-last_cone_detection_time = 0  # 마지막 라바콘 감지 시간
 
 # 이미지 관련 상수
 IMAGE_WIDTH = 260  # 이미지 너비
 IMAGE_HEIGHT = 260  # 이미지 높이
 BASE_X = 130  # 이미지 중앙 x좌표
 BASE_Y = 260  # 이미지 하단 y좌표
-
-# 차선 감지 관련 변수 추가
-right_lane_missing_time = 0  # 오른쪽 차선 미감지 시작 시간
-left_lane_missing_time = 0   # 왼쪽 차선 미감지 시작 시간
-LANE_MISSING_THRESHOLD = 2.0  # 차선 미감지 임계값 (초)
-last_right_lane_detected = True  # 이전 프레임에서 오른쪽 차선 감지 여부
-last_left_lane_detected = True   # 이전 프레임에서 왼쪽 차선 감지 여부
 
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
@@ -203,12 +193,7 @@ def drive(angle, speed):
 def kanayama_control():
     global lane_data, current_lane, is_lane_changing
     global lane_change_path, lane_change_direction, lane_change_start_time
-    global L, last_cone_detection_time
-    global CONE_SPEED, CONE_SPEED_DURATION
-    global right_lane_missing_time, left_lane_missing_time
-    global last_right_lane_detected, last_left_lane_detected
-    global LANE_MISSING_THRESHOLD
-    
+    global L
     if lane_data is None:
         return 0.0, Fix_Speed
 
@@ -256,82 +241,17 @@ def kanayama_control():
     K_phi = 3.0
     v_r = Fix_Speed
     
-    # 라바콘 감지 시 속도 제어 및 조향각 조정
-    current_time = time.time()
-    if lane_data.cone_detected:
-        last_cone_detection_time = current_time
-        v_r = CONE_SPEED
-        # 라바콘 주행 모드에서는 조향각을 더 급격하게 조정
-        K_y = 2.0  # 기존 0.85에서 증가
-        K_phi = 5.0  # 기존 3.0에서 증가
-        rospy.loginfo("라바콘 감지: 속도 %.2f km/h로 감속, 조향각 민감도 증가", v_r)
-    elif current_time - last_cone_detection_time < CONE_SPEED_DURATION:
-        v_r = CONE_SPEED
-        # 라바콘 감지 후 일정 시간 동안도 조향각 민감도 유지
-        K_y = 2.0
-        K_phi = 5.0
-        rospy.loginfo("라바콘 감지 후 %.1f초 경과: 속도 %.2f km/h 유지, 조향각 민감도 유지", 
-                     current_time - last_cone_detection_time, v_r)
-    else:
-        # 일반 주행 모드에서는 기본값 사용
-        K_y = 0.85
-        K_phi = 3.0
-    
     # lateral_err, heading_err 계산 (주신 코드 참고)
-    current_time = time.time()
-    
     if left_x == 130 and right_x == -130:
         rospy.logwarn("Both lanes lost, skipping control.")
         return 0.0, Fix_Speed
     elif left_x == 130:
-        # 왼쪽 차선이 감지되지 않을 때
-        if not last_left_lane_detected:
-            # 이전에도 왼쪽 차선이 없었다면 시간 체크
-            if left_lane_missing_time == 0:
-                left_lane_missing_time = current_time
-            elif current_time - left_lane_missing_time >= LANE_MISSING_THRESHOLD:
-                # 2초 이상 왼쪽 차선이 없으면 오른쪽으로 차선 변경
-                lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
-                heading_err = right_slope
-                steering_angle = 30.0  # 오른쪽으로 30도 조향
-                rospy.loginfo("왼쪽 차선 2초 이상 미감지: 오른쪽으로 차선 변경 시도 (조향각: %.1f도)", steering_angle)
-                return steering_angle, v_r
-        else:
-            # 이전에는 왼쪽 차선이 있었던 경우
-            left_lane_missing_time = current_time
-            last_left_lane_detected = False
-            
         lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
         heading_err = right_slope
     elif right_x == -130:
-        # 오른쪽 차선이 감지되지 않을 때
-        if not last_right_lane_detected:
-            # 이전에도 오른쪽 차선이 없었다면 시간 체크
-            if right_lane_missing_time == 0:
-                right_lane_missing_time = current_time
-            elif current_time - right_lane_missing_time >= LANE_MISSING_THRESHOLD:
-                # 2초 이상 오른쪽 차선이 없으면 왼쪽으로 차선 변경
-                lateral_err = (0.5 - (left_x / 150.0)) * lane_width
-                heading_err = left_slope
-                steering_angle = -30.0  # 왼쪽으로 30도 조향
-                rospy.loginfo("오른쪽 차선 2초 이상 미감지: 왼쪽으로 차선 변경 시도 (조향각: %.1f도)", steering_angle)
-                return steering_angle, v_r
-        else:
-            # 이전에는 오른쪽 차선이 있었던 경우
-            right_lane_missing_time = current_time
-            last_right_lane_detected = False
-            
         lateral_err = (0.5 - (left_x / 150.0)) * lane_width
         heading_err = left_slope
     else:
-        # 양쪽 차선 모두 감지된 경우
-        last_right_lane_detected = True
-        right_lane_missing_time = 0
-        
-        # 0으로 나누는 상황 방지
-        if abs(left_x + right_x) < 0.1:  # 매우 작은 값으로 설정
-            rospy.logwarn("차선 위치가 중앙에 너무 가까움, 이전 조향각 유지")
-            return 0.0, v_r  # 현재 속도 유지하면서 조향각 0 반환
         lateral_err = -(left_x / (left_x + right_x) - 0.5) * lane_width
         heading_err = 0.5 * (left_slope + right_slope)
     heading_err *= -1
@@ -594,9 +514,8 @@ def lane_change_control(path, current_x, current_y, current_angle, direction):
 # 실질적인 메인 함수 
 #=============================================
 def start():
-    global motor, image, ranges, light_go
+    global motor, image, ranges
     prev_angle = 0.0
-    light_go = False  # 초기화 추가
     print("Start program --------------")
 
     #=========================================
