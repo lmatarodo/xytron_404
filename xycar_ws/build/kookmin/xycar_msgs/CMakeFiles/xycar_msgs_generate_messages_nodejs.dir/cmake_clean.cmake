@@ -1,8 +1,8 @@
 file(REMOVE_RECURSE
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/ConeLanes.js"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarMotor.js"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarUltrasonic.js"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js"
+  "/home/sihoon/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/ConeLanes.js"
+  "/home/sihoon/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarMotor.js"
+  "/home/sihoon/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/XycarUltrasonic.js"
+  "/home/sihoon/xytron_404/xycar_ws/devel/share/gennodejs/ros/xycar_msgs/msg/laneinfo.js"
   "CMakeFiles/xycar_msgs_generate_messages_nodejs"
 )
 

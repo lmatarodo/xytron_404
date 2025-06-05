@@ -43,10 +43,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/taeyeong/xytron_404/xycar_ws/src
+CMAKE_SOURCE_DIR = /home/sihoon/xytron_404/xycar_ws/src
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/taeyeong/xytron_404/xycar_ws/build
+CMAKE_BINARY_DIR = /home/sihoon/xytron_404/xycar_ws/build
 
 # Utility rule file for sensor_msgs_generate_messages_eus.
 
@@ -63,10 +63,10 @@ kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/build: sensor_m
 .PHONY : kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/build
 
 kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/clean:
-	cd /home/taeyeong/xytron_404/xycar_ws/build/kookmin/kookmin && $(CMAKE_COMMAND) -P CMakeFiles/sensor_msgs_generate_messages_eus.dir/cmake_clean.cmake
+	cd /home/sihoon/xytron_404/xycar_ws/build/kookmin/kookmin && $(CMAKE_COMMAND) -P CMakeFiles/sensor_msgs_generate_messages_eus.dir/cmake_clean.cmake
 .PHONY : kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/clean
 
 kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/depend:
-	cd /home/taeyeong/xytron_404/xycar_ws/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/taeyeong/xytron_404/xycar_ws/src /home/taeyeong/xytron_404/xycar_ws/src/kookmin/kookmin /home/taeyeong/xytron_404/xycar_ws/build /home/taeyeong/xytron_404/xycar_ws/build/kookmin/kookmin /home/taeyeong/xytron_404/xycar_ws/build/kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/sihoon/xytron_404/xycar_ws/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/sihoon/xytron_404/xycar_ws/src /home/sihoon/xytron_404/xycar_ws/src/kookmin/kookmin /home/sihoon/xytron_404/xycar_ws/build /home/sihoon/xytron_404/xycar_ws/build/kookmin/kookmin /home/sihoon/xytron_404/xycar_ws/build/kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : kookmin/kookmin/CMakeFiles/sensor_msgs_generate_messages_eus.dir/depend
 

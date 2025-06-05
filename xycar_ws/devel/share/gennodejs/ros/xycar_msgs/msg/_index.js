@@ -1,14 +1,14 @@
 
 "use strict";
 
-let laneinfo = require('./laneinfo.js');
-let XycarMotor = require('./XycarMotor.js');
-let XycarUltrasonic = require('./XycarUltrasonic.js');
 let ConeLanes = require('./ConeLanes.js');
+let laneinfo = require('./laneinfo.js');
+let XycarUltrasonic = require('./XycarUltrasonic.js');
+let XycarMotor = require('./XycarMotor.js');
 
 module.exports = {
-  laneinfo: laneinfo,
-  XycarMotor: XycarMotor,
-  XycarUltrasonic: XycarUltrasonic,
   ConeLanes: ConeLanes,
+  laneinfo: laneinfo,
+  XycarUltrasonic: XycarUltrasonic,
+  XycarMotor: XycarMotor,
 };

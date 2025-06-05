@@ -30,7 +30,8 @@ struct laneinfo_
     , right_x(0.0)
     , right_y(0.0)
     , right_slope(0.0)
-    , lane_number(0)  {
+    , lane_number(0)
+    , cone_detected_flag(false)  {
     }
   laneinfo_(const ContainerAllocator& _alloc)
     : left_x(0.0)
@@ -39,7 +40,8 @@ struct laneinfo_
     , right_x(0.0)
     , right_y(0.0)
     , right_slope(0.0)
-    , lane_number(0)  {
+    , lane_number(0)
+    , cone_detected_flag(false)  {
   (void)_alloc;
     }
 
@@ -65,6 +67,9 @@ struct laneinfo_
 
    typedef int32_t _lane_number_type;
   _lane_number_type lane_number;
+
+   typedef uint8_t _cone_detected_flag_type;
+  _cone_detected_flag_type cone_detected_flag;
 
 
 
@@ -101,7 +106,8 @@ bool operator==(const ::xycar_msgs::laneinfo_<ContainerAllocator1> & lhs, const 
     lhs.right_x == rhs.right_x &&
     lhs.right_y == rhs.right_y &&
     lhs.right_slope == rhs.right_slope &&
-    lhs.lane_number == rhs.lane_number;
+    lhs.lane_number == rhs.lane_number &&
+    lhs.cone_detected_flag == rhs.cone_detected_flag;
 }
 
 template<typename ContainerAllocator1, typename ContainerAllocator2>
@@ -158,12 +164,12 @@ struct MD5Sum< ::xycar_msgs::laneinfo_<ContainerAllocator> >
 {
   static const char* value()
   {
-    return "6d0d242a09af36c4e0ef3fbf421ba402";
+    return "80e7564081aa5c4a700b9b80391fcc78";
   }
 
   static const char* value(const ::xycar_msgs::laneinfo_<ContainerAllocator>&) { return value(); }
-  static const uint64_t static_value1 = 0x6d0d242a09af36c4ULL;
-  static const uint64_t static_value2 = 0xe0ef3fbf421ba402ULL;
+  static const uint64_t static_value1 = 0x80e7564081aa5c4aULL;
+  static const uint64_t static_value2 = 0x700b9b80391fcc78ULL;
 };
 
 template<class ContainerAllocator>
@@ -189,6 +195,7 @@ struct Definition< ::xycar_msgs::laneinfo_<ContainerAllocator> >
 "float32 right_y\n"
 "float32 right_slope\n"
 "int32 lane_number  # 1: 1차선, 2: 2차선 \n"
+"bool cone_detected_flag \n"
 ;
   }
 
@@ -214,6 +221,7 @@ namespace serialization
       stream.next(m.right_y);
       stream.next(m.right_slope);
       stream.next(m.lane_number);
+      stream.next(m.cone_detected_flag);
     }
 
     ROS_DECLARE_ALLINONE_SERIALIZER
@@ -260,6 +268,10 @@ struct Printer< ::xycar_msgs::laneinfo_<ContainerAllocator> >
       s << std::endl;
     s << indent << "lane_number: ";
     Printer<int32_t>::stream(s, indent + "  ", v.lane_number);
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "cone_detected_flag: ";
+    Printer<uint8_t>::stream(s, indent + "  ", v.cone_detected_flag);
   }
 };
 

@@ -19,6 +19,8 @@
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/Point.h>
 
 namespace xycar_msgs
 {
@@ -35,7 +37,9 @@ struct ConeLanes_
     , right_lane_detected(false)
     , right_lane_points()
     , right_lane_degree(0)
-    , center_path()  {
+    , center_path()
+    , raw_left_cones()
+    , raw_right_cones()  {
     }
   ConeLanes_(const ContainerAllocator& _alloc)
     : header(_alloc)
@@ -45,7 +49,9 @@ struct ConeLanes_
     , right_lane_detected(false)
     , right_lane_points(_alloc)
     , right_lane_degree(0)
-    , center_path(_alloc)  {
+    , center_path(_alloc)
+    , raw_left_cones(_alloc)
+    , raw_right_cones(_alloc)  {
   (void)_alloc;
     }
 
@@ -74,6 +80,12 @@ struct ConeLanes_
 
    typedef std::vector< ::geometry_msgs::Point_<ContainerAllocator> , typename std::allocator_traits<ContainerAllocator>::template rebind_alloc< ::geometry_msgs::Point_<ContainerAllocator> >> _center_path_type;
   _center_path_type center_path;
+
+   typedef std::vector< ::geometry_msgs::Point_<ContainerAllocator> , typename std::allocator_traits<ContainerAllocator>::template rebind_alloc< ::geometry_msgs::Point_<ContainerAllocator> >> _raw_left_cones_type;
+  _raw_left_cones_type raw_left_cones;
+
+   typedef std::vector< ::geometry_msgs::Point_<ContainerAllocator> , typename std::allocator_traits<ContainerAllocator>::template rebind_alloc< ::geometry_msgs::Point_<ContainerAllocator> >> _raw_right_cones_type;
+  _raw_right_cones_type raw_right_cones;
 
 
 
@@ -111,7 +123,9 @@ bool operator==(const ::xycar_msgs::ConeLanes_<ContainerAllocator1> & lhs, const
     lhs.right_lane_detected == rhs.right_lane_detected &&
     lhs.right_lane_points == rhs.right_lane_points &&
     lhs.right_lane_degree == rhs.right_lane_degree &&
-    lhs.center_path == rhs.center_path;
+    lhs.center_path == rhs.center_path &&
+    lhs.raw_left_cones == rhs.raw_left_cones &&
+    lhs.raw_right_cones == rhs.raw_right_cones;
 }
 
 template<typename ContainerAllocator1, typename ContainerAllocator2>
@@ -168,12 +182,12 @@ struct MD5Sum< ::xycar_msgs::ConeLanes_<ContainerAllocator> >
 {
   static const char* value()
   {
-    return "af8510db732fe4223bfc5f0cf49c6646";
+    return "5c7eb5d58bf4ebb872021d1391e4b03c";
   }
 
   static const char* value(const ::xycar_msgs::ConeLanes_<ContainerAllocator>&) { return value(); }
-  static const uint64_t static_value1 = 0xaf8510db732fe422ULL;
-  static const uint64_t static_value2 = 0x3bfc5f0cf49c6646ULL;
+  static const uint64_t static_value1 = 0x5c7eb5d58bf4ebb8ULL;
+  static const uint64_t static_value2 = 0x72021d1391e4b03cULL;
 };
 
 template<class ContainerAllocator>
@@ -209,6 +223,10 @@ struct Definition< ::xycar_msgs::ConeLanes_<ContainerAllocator> >
 "\n"
 "# 중앙 주행 경로\n"
 "geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트\n"
+"\n"
+"\n"
+"geometry_msgs/Point[] raw_left_cones    # [추가됨] 클러스터링된 왼쪽 라바콘 원본 포인트\n"
+"geometry_msgs/Point[] raw_right_cones   # [추가됨] 클러스터링된 오른쪽 라바콘 원본 포인트\n"
 "================================================================================\n"
 "MSG: std_msgs/Header\n"
 "# Standard metadata for higher-level stamped data types.\n"
@@ -257,6 +275,8 @@ namespace serialization
       stream.next(m.right_lane_points);
       stream.next(m.right_lane_degree);
       stream.next(m.center_path);
+      stream.next(m.raw_left_cones);
+      stream.next(m.raw_right_cones);
     }
 
     ROS_DECLARE_ALLINONE_SERIALIZER
@@ -339,6 +359,36 @@ struct Printer< ::xycar_msgs::ConeLanes_<ContainerAllocator> >
       Printer< ::geometry_msgs::Point_<ContainerAllocator> >::stream(s, false ? std::string() : indent + "    ", v.center_path[i]);
     }
     if (v.center_path.empty() || false)
+      s << "]";
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "raw_left_cones: ";
+    if (v.raw_left_cones.empty() || false)
+      s << "[";
+    for (size_t i = 0; i < v.raw_left_cones.size(); ++i)
+    {
+      if (false && i > 0)
+        s << ", ";
+      else if (!false)
+        s << std::endl << indent << "  -";
+      Printer< ::geometry_msgs::Point_<ContainerAllocator> >::stream(s, false ? std::string() : indent + "    ", v.raw_left_cones[i]);
+    }
+    if (v.raw_left_cones.empty() || false)
+      s << "]";
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "raw_right_cones: ";
+    if (v.raw_right_cones.empty() || false)
+      s << "[";
+    for (size_t i = 0; i < v.raw_right_cones.size(); ++i)
+    {
+      if (false && i > 0)
+        s << ", ";
+      else if (!false)
+        s << std::endl << indent << "  -";
+      Printer< ::geometry_msgs::Point_<ContainerAllocator> >::stream(s, false ? std::string() : indent + "    ", v.raw_right_cones[i]);
+    }
+    if (v.raw_right_cones.empty() || false)
       s << "]";
   }
 };

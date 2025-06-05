@@ -13,21 +13,21 @@ fi
 
 echo_and_run() { echo "+ $@" ; "$@" ; }
 
-echo_and_run cd "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/ROS-TCP-Endpoint"
+echo_and_run cd "/home/sihoon/xytron_404/xycar_ws/src/kookmin/ROS-TCP-Endpoint"
 
 # ensure that Python install destination exists
-echo_and_run mkdir -p "$DESTDIR/home/taeyeong/xytron_404/xycar_ws/install/lib/python3/dist-packages"
+echo_and_run mkdir -p "$DESTDIR/home/sihoon/xytron_404/xycar_ws/install/lib/python3/dist-packages"
 
 # Note that PYTHONPATH is pulled from the environment to support installing
 # into one location when some dependencies were installed in another
 # location, #123.
 echo_and_run /usr/bin/env \
-    PYTHONPATH="/home/taeyeong/xytron_404/xycar_ws/install/lib/python3/dist-packages:/home/taeyeong/xytron_404/xycar_ws/build/lib/python3/dist-packages:$PYTHONPATH" \
-    CATKIN_BINARY_DIR="/home/taeyeong/xytron_404/xycar_ws/build" \
+    PYTHONPATH="/home/sihoon/xytron_404/xycar_ws/install/lib/python3/dist-packages:/home/sihoon/xytron_404/xycar_ws/build/lib/python3/dist-packages:$PYTHONPATH" \
+    CATKIN_BINARY_DIR="/home/sihoon/xytron_404/xycar_ws/build" \
     "/usr/bin/python3" \
-    "/home/taeyeong/xytron_404/xycar_ws/src/kookmin/ROS-TCP-Endpoint/setup.py" \
-    egg_info --egg-base /home/taeyeong/xytron_404/xycar_ws/build/kookmin/ROS-TCP-Endpoint \
-    build --build-base "/home/taeyeong/xytron_404/xycar_ws/build/kookmin/ROS-TCP-Endpoint" \
+    "/home/sihoon/xytron_404/xycar_ws/src/kookmin/ROS-TCP-Endpoint/setup.py" \
+    egg_info --egg-base /home/sihoon/xytron_404/xycar_ws/build/kookmin/ROS-TCP-Endpoint \
+    build --build-base "/home/sihoon/xytron_404/xycar_ws/build/kookmin/ROS-TCP-Endpoint" \
     install \
     --root="${DESTDIR-/}" \
-    --install-layout=deb --prefix="/home/taeyeong/xytron_404/xycar_ws/install" --install-scripts="/home/taeyeong/xytron_404/xycar_ws/install/bin"
+    --install-layout=deb --prefix="/home/sihoon/xytron_404/xycar_ws/install" --install-scripts="/home/sihoon/xytron_404/xycar_ws/install/bin"

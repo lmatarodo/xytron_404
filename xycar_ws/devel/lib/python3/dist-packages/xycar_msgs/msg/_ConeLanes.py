@@ -10,7 +10,7 @@ import geometry_msgs.msg
 import std_msgs.msg
 
 class ConeLanes(genpy.Message):
-  _md5sum = "af8510db732fe4223bfc5f0cf49c6646"
+  _md5sum = "5c7eb5d58bf4ebb872021d1391e4b03c"
   _type = "xycar_msgs/ConeLanes"
   _has_header = True  # flag to mark the presence of a Header object
   _full_text = """# ConeLanes.msg
@@ -30,6 +30,10 @@ int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 �
 
 # 중앙 주행 경로
 geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트
+
+
+geometry_msgs/Point[] raw_left_cones    # [추가됨] 클러스터링된 왼쪽 라바콘 원본 포인트
+geometry_msgs/Point[] raw_right_cones   # [추가됨] 클러스터링된 오른쪽 라바콘 원본 포인트
 ================================================================================
 MSG: std_msgs/Header
 # Standard metadata for higher-level stamped data types.
@@ -53,8 +57,8 @@ float64 x
 float64 y
 float64 z
 """
-  __slots__ = ['header','left_lane_detected','left_lane_points','left_lane_degree','right_lane_detected','right_lane_points','right_lane_degree','center_path']
-  _slot_types = ['std_msgs/Header','bool','geometry_msgs/Point[]','int8','bool','geometry_msgs/Point[]','int8','geometry_msgs/Point[]']
+  __slots__ = ['header','left_lane_detected','left_lane_points','left_lane_degree','right_lane_detected','right_lane_points','right_lane_degree','center_path','raw_left_cones','raw_right_cones']
+  _slot_types = ['std_msgs/Header','bool','geometry_msgs/Point[]','int8','bool','geometry_msgs/Point[]','int8','geometry_msgs/Point[]','geometry_msgs/Point[]','geometry_msgs/Point[]']
 
   def __init__(self, *args, **kwds):
     """
@@ -64,7 +68,7 @@ float64 z
     changes.  You cannot mix in-order arguments and keyword arguments.
 
     The available fields are:
-       header,left_lane_detected,left_lane_points,left_lane_degree,right_lane_detected,right_lane_points,right_lane_degree,center_path
+       header,left_lane_detected,left_lane_points,left_lane_degree,right_lane_detected,right_lane_points,right_lane_degree,center_path,raw_left_cones,raw_right_cones
 
     :param args: complete set of field values, in .msg order
     :param kwds: use keyword arguments corresponding to message field names
@@ -89,6 +93,10 @@ float64 z
         self.right_lane_degree = 0
       if self.center_path is None:
         self.center_path = []
+      if self.raw_left_cones is None:
+        self.raw_left_cones = []
+      if self.raw_right_cones is None:
+        self.raw_right_cones = []
     else:
       self.header = std_msgs.msg.Header()
       self.left_lane_detected = False
@@ -98,6 +106,8 @@ float64 z
       self.right_lane_points = []
       self.right_lane_degree = 0
       self.center_path = []
+      self.raw_left_cones = []
+      self.raw_right_cones = []
 
   def _get_types(self):
     """
@@ -140,6 +150,16 @@ float64 z
       for val1 in self.center_path:
         _x = val1
         buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
+      length = len(self.raw_left_cones)
+      buff.write(_struct_I.pack(length))
+      for val1 in self.raw_left_cones:
+        _x = val1
+        buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
+      length = len(self.raw_right_cones)
+      buff.write(_struct_I.pack(length))
+      for val1 in self.raw_right_cones:
+        _x = val1
+        buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -159,6 +179,10 @@ float64 z
         self.right_lane_points = None
       if self.center_path is None:
         self.center_path = None
+      if self.raw_left_cones is None:
+        self.raw_left_cones = None
+      if self.raw_right_cones is None:
+        self.raw_right_cones = None
       end = 0
       _x = self
       start = end
@@ -218,6 +242,28 @@ float64 z
         end += 24
         (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
         self.center_path.append(val1)
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      self.raw_left_cones = []
+      for i in range(0, length):
+        val1 = geometry_msgs.msg.Point()
+        _x = val1
+        start = end
+        end += 24
+        (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
+        self.raw_left_cones.append(val1)
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      self.raw_right_cones = []
+      for i in range(0, length):
+        val1 = geometry_msgs.msg.Point()
+        _x = val1
+        start = end
+        end += 24
+        (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
+        self.raw_right_cones.append(val1)
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill
@@ -259,6 +305,16 @@ float64 z
       for val1 in self.center_path:
         _x = val1
         buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
+      length = len(self.raw_left_cones)
+      buff.write(_struct_I.pack(length))
+      for val1 in self.raw_left_cones:
+        _x = val1
+        buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
+      length = len(self.raw_right_cones)
+      buff.write(_struct_I.pack(length))
+      for val1 in self.raw_right_cones:
+        _x = val1
+        buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -279,6 +335,10 @@ float64 z
         self.right_lane_points = None
       if self.center_path is None:
         self.center_path = None
+      if self.raw_left_cones is None:
+        self.raw_left_cones = None
+      if self.raw_right_cones is None:
+        self.raw_right_cones = None
       end = 0
       _x = self
       start = end
@@ -338,6 +398,28 @@ float64 z
         end += 24
         (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
         self.center_path.append(val1)
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      self.raw_left_cones = []
+      for i in range(0, length):
+        val1 = geometry_msgs.msg.Point()
+        _x = val1
+        start = end
+        end += 24
+        (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
+        self.raw_left_cones.append(val1)
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      self.raw_right_cones = []
+      for i in range(0, length):
+        val1 = geometry_msgs.msg.Point()
+        _x = val1
+        start = end
+        end += 24
+        (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
+        self.raw_right_cones.append(val1)
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill

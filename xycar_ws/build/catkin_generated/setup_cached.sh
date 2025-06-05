@@ -7,6 +7,9 @@
 # new environment variables
 
 # modified environment variables
-export PATH='/opt/ros/noetic/bin:/home/taeyeong/miniconda3/condabin:/home/taeyeong/.local/bin:/usr/src/linux-headers-6.3.13-1-liquorix-amd64/tools/power/x86/x86_energy_perf_policy:/usr/src/linux-headers-6.3.13-1-liquorix-amd64/tools/power/x86/turbostat:/usr/src/linux-headers-6.3.13-1-liquorix-amd64/tools/power/cpupower:/usr/src/linux-headers-6.3.13-1-liquorix-amd64/tools/perf:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'
-export PWD='/home/taeyeong/xytron_404/xycar_ws/build'
-export ROS_PACKAGE_PATH='/home/taeyeong/xytron_404/xycar_ws/src:/opt/ros/noetic/share'
+export CMAKE_PREFIX_PATH="/home/sihoon/xytron_404/xycar_ws/devel:$CMAKE_PREFIX_PATH"
+export LD_LIBRARY_PATH="/home/sihoon/xytron_404/xycar_ws/devel/lib:$LD_LIBRARY_PATH"
+export PWD='/home/sihoon/xytron_404/xycar_ws/build'
+export PYTHONPATH="/home/sihoon/xytron_404/xycar_ws/devel/lib/python3/dist-packages:$PYTHONPATH"
+export ROSLISP_PACKAGE_DIRECTORIES='/home/sihoon/xytron_404/xycar_ws/devel/share/common-lisp'
+export ROS_PACKAGE_PATH='/home/sihoon/xytron_404/xycar_ws/src:/opt/ros/noetic/share'

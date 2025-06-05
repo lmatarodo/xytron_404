@@ -18,7 +18,7 @@
 
 (defclass xycar_msgs::ConeLanes
   :super ros::object
-  :slots (_header _left_lane_detected _left_lane_points _left_lane_degree _right_lane_detected _right_lane_points _right_lane_degree _center_path ))
+  :slots (_header _left_lane_detected _left_lane_points _left_lane_degree _right_lane_detected _right_lane_points _right_lane_degree _center_path _raw_left_cones _raw_right_cones ))
 
 (defmethod xycar_msgs::ConeLanes
   (:init
@@ -31,6 +31,8 @@
     ((:right_lane_points __right_lane_points) ())
     ((:right_lane_degree __right_lane_degree) 0)
     ((:center_path __center_path) ())
+    ((:raw_left_cones __raw_left_cones) ())
+    ((:raw_right_cones __raw_right_cones) ())
     )
    (send-super :init)
    (setq _header __header)
@@ -41,6 +43,8 @@
    (setq _right_lane_points __right_lane_points)
    (setq _right_lane_degree (round __right_lane_degree))
    (setq _center_path __center_path)
+   (setq _raw_left_cones __raw_left_cones)
+   (setq _raw_right_cones __raw_right_cones)
    self)
   (:header
    (&rest __header)
@@ -82,6 +86,20 @@
      (progn
        (if __center_path (setq _center_path (car __center_path)))
        _center_path)))
+  (:raw_left_cones
+   (&rest __raw_left_cones)
+   (if (keywordp (car __raw_left_cones))
+       (send* _raw_left_cones __raw_left_cones)
+     (progn
+       (if __raw_left_cones (setq _raw_left_cones (car __raw_left_cones)))
+       _raw_left_cones)))
+  (:raw_right_cones
+   (&rest __raw_right_cones)
+   (if (keywordp (car __raw_right_cones))
+       (send* _raw_right_cones __raw_right_cones)
+     (progn
+       (if __raw_right_cones (setq _raw_right_cones (car __raw_right_cones)))
+       _raw_right_cones)))
   (:serialization-length
    ()
    (+
@@ -101,6 +119,10 @@
     1
     ;; geometry_msgs/Point[] _center_path
     (apply #'+ (send-all _center_path :serialization-length)) 4
+    ;; geometry_msgs/Point[] _raw_left_cones
+    (apply #'+ (send-all _raw_left_cones :serialization-length)) 4
+    ;; geometry_msgs/Point[] _raw_right_cones
+    (apply #'+ (send-all _raw_right_cones :serialization-length)) 4
     ))
   (:serialize
    (&optional strm)
@@ -129,6 +151,16 @@
      ;; geometry_msgs/Point[] _center_path
      (write-long (length _center_path) s)
      (dolist (elem _center_path)
+       (send elem :serialize s)
+       )
+     ;; geometry_msgs/Point[] _raw_left_cones
+     (write-long (length _raw_left_cones) s)
+     (dolist (elem _raw_left_cones)
+       (send elem :serialize s)
+       )
+     ;; geometry_msgs/Point[] _raw_right_cones
+     (write-long (length _raw_right_cones) s)
+     (dolist (elem _raw_right_cones)
        (send elem :serialize s)
        )
      ;;
@@ -168,11 +200,25 @@
      (dolist (elem- _center_path)
      (send elem- :deserialize buf ptr-) (incf ptr- (send elem- :serialization-length))
      ))
+   ;; geometry_msgs/Point[] _raw_left_cones
+   (let (n)
+     (setq n (sys::peek buf ptr- :integer)) (incf ptr- 4)
+     (setq _raw_left_cones (let (r) (dotimes (i n) (push (instance geometry_msgs::Point :init) r)) r))
+     (dolist (elem- _raw_left_cones)
+     (send elem- :deserialize buf ptr-) (incf ptr- (send elem- :serialization-length))
+     ))
+   ;; geometry_msgs/Point[] _raw_right_cones
+   (let (n)
+     (setq n (sys::peek buf ptr- :integer)) (incf ptr- 4)
+     (setq _raw_right_cones (let (r) (dotimes (i n) (push (instance geometry_msgs::Point :init) r)) r))
+     (dolist (elem- _raw_right_cones)
+     (send elem- :deserialize buf ptr-) (incf ptr- (send elem- :serialization-length))
+     ))
    ;;
    self)
   )
 
-(setf (get xycar_msgs::ConeLanes :md5sum-) "af8510db732fe4223bfc5f0cf49c6646")
+(setf (get xycar_msgs::ConeLanes :md5sum-) "5c7eb5d58bf4ebb872021d1391e4b03c")
 (setf (get xycar_msgs::ConeLanes :datatype-) "xycar_msgs/ConeLanes")
 (setf (get xycar_msgs::ConeLanes :definition-)
       "# ConeLanes.msg
@@ -192,6 +238,10 @@ int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 �
 
 # 중앙 주행 경로
 geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트
+
+
+geometry_msgs/Point[] raw_left_cones    # [추가됨] 클러스터링된 왼쪽 라바콘 원본 포인트
+geometry_msgs/Point[] raw_right_cones   # [추가됨] 클러스터링된 오른쪽 라바콘 원본 포인트
 ================================================================================
 MSG: std_msgs/Header
 # Standard metadata for higher-level stamped data types.
@@ -219,6 +269,6 @@ float64 z
 
 
 
-(provide :xycar_msgs/ConeLanes "af8510db732fe4223bfc5f0cf49c6646")
+(provide :xycar_msgs/ConeLanes "5c7eb5d58bf4ebb872021d1391e4b03c")
 
 

@@ -1,0 +1,3313 @@
+첨부한 3개 .py 코드들의 통합(코드를 한 파일로 합치는게 아닌 상호작용/호환성 구현) 을 진행하려 하는데, lane_detection.py에서  detect_orange_cone으로 라바콘이 하나라도 인식될때만 라바콘 주행모드가 되게 하자. 제공한 코드들에서 주석들로 되있는거 구분 잘 해서 진짜 코드로 읽지 않게 조심해줘.
+
+
+
+lane_detection.py에서 현재 라바콘과 차선 인식을 동시에 진행하여 이를 기반으로 한 제어를 구현하려 하는데, lane_detection.py에서는 라바콘 관련 인식 코드는 '라바콘 주행 모드'를 켜고 끄는 용도 말고는 전부 폐기하도록 하자. 물론 카메라 기반으로 차선 인식 자체는 해야 하므로 라바콘 관련만 폐기하는거야. 라바콘 인식/라바콘 주행모드일때 제어는 cone_lane_detector.py와 track_drive.py를 통해서만 구현하면 될거 같아. 그리고 애초에 라바콘 주행모드 일때도 카메라 기반 말고 라이다 기반으로 전부 진행할거야. 그냥 모드 전환만 카메라로 구현하는거지. 
+
+
+
+cone_lane_detector와 track_drive의 라바콘 인식 및 클러스터링, path구하기, 시각화 등등 부분은 완벽한데, 이를 이용한 라바콘 주행 모드 할때의 제어 코드를 만들어줘야 할 것 같아. 차선 인식 주행 모드에서의 카나야마 제어 로직은 그대로 두고, 라바콘 주행 모드에서는 카나야마 대신 Pure Pursuit 알고리즘만 사용하여 근거리 목표점으로 유도하는 방식으로 구현하자.
+
+Pure Pursuit 구현 방법은 클러스터링된 라바콘 포인트들이 현재 인식이 잘 되고 있는 상황이므로, 현재 시각화할때 빨간색(왼쪽 체인)과 파란색(오른쪽 체인)상의 포인트들에 대해, 빨간색 포인트들 중 (0,0)과 거리가 제일 가까운 두 점 a1, a2(a1이 더 가까움)와 파란색 포인트들 중 (0,0)과 거리가 제일 가까운 두 만 b1, b2(b1이 더 가까움), 총 4점을 구해. 그리고 a1과 b1의 평균 좌표 c1, a2와 b2의 평균 좌표 c2를 얻어서 c1과 c2 사이 3대 1 지점을 목표로 차량이 Pure Pursuit 알고리즘으로 나아가게 하여 제어할 생각이야. 이 목표 갱신은 매 순간 이루어져야 하지. 축거는 현재처럼 0.5를 생각하고 진행하면 좋을 것 같아. 이 알고리즘의 약점은 왼쪽 체인과 오른쪽 체인 중 하나만 인식될 경우인데, 이 동안은 차선 주행 모드 상태에서 카나야마로 제어되게 하자.
+
+라바콘 주행 구간에서는 보수적으로 일단 최대 속력을 20까지로 제한 두고 진행하여 보자.
+
+
+
+기존 동료의 차선 주행 모드가 켜졌을 때 차선 주행 코드 돌아가는 거과, cone_lane_detector.py로 콘 레인을 인식하고 시각화하는 기존의 코드들은 전부 최대한 기존과 똑같이 하고(변수 이름/파라미터 같은 사소한 부분들까지), 지금까지의 코드를 이용해서
+
+새로운 라바콘 주행 모드만 추가한다는 느낌(cone_detected_flag가 켜졌을때 디폴트인 차선 주행 모드에서 라바콘 주행 모드로 전환되게 하는 로직이랑, 라바콘 주행 모드 시 기존 cone_lane_detector.py를 활용한 pure pursuit제어 구현)으로 이해하면 될 듯.
+
+
+
+방어 로직 같은거 애매하게 추가해서 주행 모드가 서로 간섭되는 일이 일어나지 않게 조심해야 해. 다시 말하지만 기존 코드들 최대한 그대로 살리면서 더 이상 안쓰는 불필요한 코드들만 지우고, 꼭 필요한 부분들만 새롭게 수정/추가하도록 하자
+
+통합 수정을 이뤄낸 3개 .py를 제공해주면 돼. 그 후 코드 통합을 위해 진행해야 될 부수작업까지 알려줘(예를 들자면 메시지 정의 같은 거).
+
+
+
+아래는 cone_lane_detector.py 이야
+
+#!/usr/bin/env python
+
+# -*- coding: utf-8 -*-
+
+
+
+import numpy as np
+
+import rospy
+
+import math
+
+from sensor_msgs.msg import LaserScan
+
+from geometry_msgs.msg import Point
+
+from xycar_msgs.msg import ConeLanes
+
+import std_msgs.msg
+
+import matplotlib.pyplot as plt
+
+
+
+# =============================================
+
+# 파라미터
+
+# =============================================
+
+LIDAR_ANGLE_RANGE_HALF = 95
+
+LIDAR_MAX_DIST = 12.0
+
+CONE_CLUSTER_RADIUS = 0.3
+
+
+
+CHAIN_INITIAL_SEED_Y_MAX = 4.0  
+
+CHAIN_MAX_NEXT_CONE_DIST = 5.0   # 필터링 조건
+
+CHAIN_MAX_HEADING_CHANGE_RAD = np.radians(80) # 필터링 조건
+
+CHAIN_MIN_POINTS_FOR_LANE = 2
+
+
+
+EXPECTED_LANE_WIDTH_APPROX = 3.5
+
+X_SEED_CENTER_THRESHOLD = 0.05
+
+
+
+# === 새로운 덧셈 방식 비용 함수 가중치 ===
+
+ADD_COST_WEIGHT_DISTANCE = 1.0  # 거리제곱 오차에 대한 가중치
+
+ADD_COST_WEIGHT_ANGLE = 10.0   # 각도변화량 오차에 대한 가중치
+
+ADD_COST_WEIGHT_LATERAL = 2.0  # 측면 거리 절대값에 대한 가중치
+
+
+
+# [새로 추가됨] 다음 콘 연결을 위한 최대 허용 비용
+
+# 이 값은 ADD_COST_WEIGHT_... 가중치들과 실제 오차 값들의 스케일을 고려하여 튜닝해야 합니다.
+
+# 예시: 매우 좋은 연결은 2~5 정도의 비용, 조금 나쁜 연결은 10~20, 그 이상은 부적합으로 판단 가능
+
+MAX_ACCEPTABLE_CONNECTION_COST = 20.0
+
+# ==========================================
+
+
+
+ENABLE_MATPLOTLIB_VIZ = True
+
+
+
+if ENABLE_MATPLOTLIB_VIZ:
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    if LIDAR_ANGLE_RANGE_HALF <= 90:
+
+        plot_x_max_abs = LIDAR_MAX_DIST * math.sin(math.radians(LIDAR_ANGLE_RANGE_HALF))
+
+    else:
+
+        plot_x_max_abs = LIDAR_MAX_DIST
+
+    ax.set_xlim(-(plot_x_max_abs + 0.5), plot_x_max_abs + 0.5)
+
+    ax.set_ylim(-0.5, LIDAR_MAX_DIST + 0.5)
+
+    ax.set_aspect('equal', adjustable='box')
+
+    ax.set_title("Cone Lane Detector Viz (Max Cost Threshold)")
+
+    ax.set_xlabel("X (m) - Lateral")
+
+    ax.set_ylabel("Y (m) - Forward")
+
+    ax.grid(True)
+
+    raw_lidar_points_plot, = ax.plot([], [], 'ko', markersize=3, label='Clustered Pts (All)')
+
+    left_lane_plot, = ax.plot([], [], 'r.-', markersize=5, linewidth=1.5, label='Left Lane Fit')
+
+    right_lane_plot, = ax.plot([], [], 'b.-', markersize=5, linewidth=1.5, label='Right Lane Fit')
+
+    center_path_plot, = ax.plot([], [], 'g--', linewidth=1.5, label='Center Path')
+
+    raw_left_lane_points_plot, = ax.plot([], [], 'rx', markersize=8, markeredgewidth=2, label='Raw Left Cones')  
+
+    raw_right_lane_points_plot, = ax.plot([], [], 'bx', markersize=8, markeredgewidth=2, label='Raw Right Cones')
+
+    ax.legend(fontsize='small', loc='upper right')
+
+
+
+# =============================================
+
+# 유틸리티 함수 (이전과 동일)
+
+# =============================================
+
+def convert_lidar_to_xy(current_ranges_data):
+
+    if current_ranges_data is None or len(current_ranges_data) != 360: return np.array([])
+
+    indices_left = np.arange(0, LIDAR_ANGLE_RANGE_HALF + 1); indices_right = np.arange(360 - LIDAR_ANGLE_RANGE_HALF, 360)
+
+    valid_angular_indices = np.unique(np.concatenate((indices_left, indices_right)))
+
+    selected_ranges = current_ranges_data[valid_angular_indices]; selected_angles_rad = np.radians(valid_angular_indices.astype(float))
+
+    valid_value_indices = np.where(np.isfinite(selected_ranges) & (selected_ranges < LIDAR_MAX_DIST))[0]
+
+    if len(valid_value_indices) == 0: return np.array([])
+
+    final_ranges = selected_ranges[valid_value_indices]; final_angles_rad = selected_angles_rad[valid_value_indices]
+
+    x_coords = final_ranges * (-1) * np.sin(final_angles_rad)
+
+    y_coords = final_ranges * np.cos(final_angles_rad)
+
+    return np.column_stack((x_coords, y_coords))
+
+
+
+def cluster_lidar_points(points, cluster_radius_sq):
+
+    if points.shape[0] == 0: return np.array([])
+
+    n_points = points.shape[0]; processed_indices = np.zeros(n_points, dtype=bool); cluster_centers = []
+
+    for i in range(n_points):
+
+        if processed_indices[i]: continue
+
+        current_cluster_members_indices = [i]; processed_indices[i] = True
+
+        queue = [i]; head = 0
+
+        while head < len(queue):
+
+            seed_idx = queue[head]; head += 1
+
+            for j in range(n_points):
+
+                if processed_indices[j]: continue
+
+                if np.sum((points[seed_idx] - points[j])**2) < cluster_radius_sq:
+
+                    current_cluster_members_indices.append(j); processed_indices[j] = True; queue.append(j)
+
+        if current_cluster_members_indices: cluster_centers.append(np.mean(points[current_cluster_members_indices], axis=0))
+
+    return np.array(cluster_centers)
+
+
+
+def fit_polynomial_to_lane(lane_points_xy_data, degree=1):
+
+    min_pts_for_degree = degree + 1
+
+    if lane_points_xy_data is None or lane_points_xy_data.shape[0] < min_pts_for_degree: return None
+
+    x_values = lane_points_xy_data[:, 0]; y_values = lane_points_xy_data[:, 1]
+
+    try: poly_coeffs = np.polyfit(y_values, x_values, degree)
+
+    except Exception: poly_coeffs = None
+
+    return poly_coeffs
+
+
+
+def _calculate_angle_diff(vec1, vec2):
+
+    angle1 = math.atan2(vec1[1], vec1[0]); angle2 = math.atan2(vec2[1], vec2[0])
+
+    diff = angle2 - angle1
+
+    while diff > math.pi: diff -= 2 * math.pi
+
+    while diff < -math.pi: diff += 2 * math.pi
+
+    return diff
+
+
+
+# =============================================
+
+# 핵심 차선 감지 로직 (detect_lanes_from_cones)
+
+# =============================================
+
+def detect_lanes_from_cones(xy_coords_data_raw):
+
+    clustered_cones = cluster_lidar_points(xy_coords_data_raw, CONE_CLUSTER_RADIUS**2)
+
+    num_total_cones = clustered_cones.shape[0]
+
+    sampled_left_lane_coords = []; sampled_right_lane_coords = []; center_path_coords = []
+
+    left_lane_detected_flag = False; right_lane_detected_flag = False
+
+    left_poly_deg = 0; right_poly_deg = 0
+
+    raw_left_cones_for_plot = np.array([])
+
+    raw_right_cones_for_plot = np.array([])
+
+
+
+    if num_total_cones < CHAIN_MIN_POINTS_FOR_LANE:
+
+        return np.array(sampled_left_lane_coords), np.array(sampled_right_lane_coords), \
+
+               np.array(center_path_coords), left_lane_detected_flag, \
+
+               right_lane_detected_flag, left_poly_deg, right_poly_deg, \
+
+               raw_left_cones_for_plot, raw_right_cones_for_plot
+
+
+
+    is_cone_used = np.zeros(num_total_cones, dtype=bool)
+
+   
+
+    def build_one_lane_chain(start_cone_idx, all_cones, used_mask):
+
+        if start_cone_idx is None or start_cone_idx < 0 or start_cone_idx >= len(all_cones) or used_mask[start_cone_idx]: return []
+
+        current_chain = [all_cones[start_cone_idx]]; used_mask[start_cone_idx] = True
+
+        last_added_cone = all_cones[start_cone_idx]; previous_segment_vector = None
+
+        while True:
+
+            best_next_cone_idx = -1
+
+            min_cost = float('inf')
+
+
+
+            for i in range(num_total_cones):
+
+                if used_mask[i]: continue
+
+                candidate_cone = all_cones[i]; vector_to_candidate = candidate_cone - last_added_cone
+
+                dist_sq_to_candidate = np.sum(vector_to_candidate**2)
+
+                lateral_distance_to_candidate = abs(vector_to_candidate[0])
+
+
+
+                if dist_sq_to_candidate >= CHAIN_MAX_NEXT_CONE_DIST**2: continue
+
+               
+
+                angle_change = 0.0
+
+                if previous_segment_vector is not None:
+
+                    angle_change = _calculate_angle_diff(previous_segment_vector, vector_to_candidate)
+
+                    if abs(angle_change) > CHAIN_MAX_HEADING_CHANGE_RAD:
+
+                        continue
+
+               
+
+                current_candidate_cost = 0.0
+
+                current_candidate_cost += ADD_COST_WEIGHT_DISTANCE * dist_sq_to_candidate
+
+                if previous_segment_vector is not None:
+
+                    current_candidate_cost += ADD_COST_WEIGHT_ANGLE * abs(angle_change)
+
+                current_candidate_cost += ADD_COST_WEIGHT_LATERAL * lateral_distance_to_candidate
+
+               
+
+                if current_candidate_cost < min_cost:
+
+                    min_cost = current_candidate_cost
+
+                    best_next_cone_idx = i
+
+           
+
+            # --- [새로 추가된 로직] 최저 비용이 임계값을 초과하는지 확인 ---
+
+            if best_next_cone_idx != -1: # 일단 후보를 찾았더라도
+
+                if min_cost > MAX_ACCEPTABLE_CONNECTION_COST:
+
+                    best_next_cone_idx = -1 # 비용이 너무 크면, 못 찾은 것으로 처리
+
+            # --- 로직 추가 끝 ---
+
+
+
+            if best_next_cone_idx != -1:
+
+                new_cone_to_add = all_cones[best_next_cone_idx]; current_chain.append(new_cone_to_add)
+
+                used_mask[best_next_cone_idx] = True
+
+                if len(current_chain) > 1:
+
+                    previous_segment_vector = new_cone_to_add - last_added_cone
+
+                last_added_cone = new_cone_to_add
+
+            else:
+
+                break
+
+        return current_chain
+
+
+
+    # (seed_candidates_in_y_zone 이하 로직 동일)
+
+    seed_candidates_in_y_zone = clustered_cones[clustered_cones[:, 1] <= CHAIN_INITIAL_SEED_Y_MAX]
+
+    if seed_candidates_in_y_zone.shape[0] == 0: seed_candidates_in_y_zone = clustered_cones
+
+    left_seed_idx_in_clustered_cones = None; right_seed_idx_in_clustered_cones = None
+
+    if seed_candidates_in_y_zone.shape[0] > 0:
+
+        left_seed_pool = seed_candidates_in_y_zone[seed_candidates_in_y_zone[:, 0] < -X_SEED_CENTER_THRESHOLD]
+
+        right_seed_pool = seed_candidates_in_y_zone[seed_candidates_in_y_zone[:, 0] > X_SEED_CENTER_THRESHOLD]
+
+        if left_seed_pool.shape[0] > 0:
+
+            sorted_left_seeds = left_seed_pool[np.lexsort((left_seed_pool[:, 0], left_seed_pool[:, 1]))]
+
+            temp_idx = np.where((clustered_cones == sorted_left_seeds[0]).all(axis=1))[0]
+
+            if temp_idx.size > 0: left_seed_idx_in_clustered_cones = temp_idx[0]
+
+        if right_seed_pool.shape[0] > 0:
+
+            sorted_right_seeds = right_seed_pool[np.lexsort((-right_seed_pool[:, 0], right_seed_pool[:, 1]))]
+
+            temp_idx = np.where((clustered_cones == sorted_right_seeds[0]).all(axis=1))[0]
+
+            if temp_idx.size > 0: right_seed_idx_in_clustered_cones = temp_idx[0]
+
+
+
+    final_left_lane_pts = build_one_lane_chain(left_seed_idx_in_clustered_cones, clustered_cones, is_cone_used)
+
+    final_right_lane_pts = build_one_lane_chain(right_seed_idx_in_clustered_cones, clustered_cones, is_cone_used)
+
+   
+
+    raw_left_cones_for_plot = np.array(final_left_lane_pts)
+
+    raw_right_cones_for_plot = np.array(final_right_lane_pts)
+
+
+
+    left_poly_coeffs = None; right_poly_coeffs = None
+
+
+
+    if raw_left_cones_for_plot.shape[0] >= CHAIN_MIN_POINTS_FOR_LANE:
+
+        degree_left = min(3, raw_left_cones_for_plot.shape[0] - 1)
+
+        if degree_left > 0 :
+
+            left_poly_coeffs = fit_polynomial_to_lane(raw_left_cones_for_plot, degree=degree_left)
+
+            if left_poly_coeffs is not None: left_lane_detected_flag = True; left_poly_deg = degree_left
+
+    if raw_right_cones_for_plot.shape[0] >= CHAIN_MIN_POINTS_FOR_LANE:
+
+        degree_right = min(3, raw_right_cones_for_plot.shape[0] - 1)
+
+        if degree_right > 0:
+
+            right_poly_coeffs = fit_polynomial_to_lane(raw_right_cones_for_plot, degree=degree_right)
+
+            if right_poly_coeffs is not None: right_lane_detected_flag = True; right_poly_deg = degree_right
+
+   
+
+    path_sample_y_values = np.linspace(0.1, LIDAR_MAX_DIST * 0.9, 15)
+
+    for y_val_sample in path_sample_y_values:
+
+        x_left_on_poly = np.polyval(left_poly_coeffs, y_val_sample) if left_poly_coeffs is not None else None
+
+        x_right_on_poly = np.polyval(right_poly_coeffs, y_val_sample) if right_poly_coeffs is not None else None
+
+        if x_left_on_poly is not None: sampled_left_lane_coords.append([x_left_on_poly, y_val_sample])
+
+        if x_right_on_poly is not None: sampled_right_lane_coords.append([x_right_on_poly, y_val_sample])
+
+        if x_left_on_poly is not None and x_right_on_poly is not None:
+
+            if EXPECTED_LANE_WIDTH_APPROX*0.2 < (x_right_on_poly-x_left_on_poly) < EXPECTED_LANE_WIDTH_APPROX*2.5 :
+
+                 center_path_coords.append([(x_left_on_poly+x_right_on_poly)/2.0, y_val_sample])
+
+        elif left_poly_coeffs is not None and x_left_on_poly is not None:
+
+            center_path_coords.append([x_left_on_poly + EXPECTED_LANE_WIDTH_APPROX/2.0, y_val_sample])
+
+        elif right_poly_coeffs is not None and x_right_on_poly is not None:
+
+            center_path_coords.append([x_right_on_poly - EXPECTED_LANE_WIDTH_APPROX/2.0, y_val_sample])
+
+   
+
+    return np.array(sampled_left_lane_coords), np.array(sampled_right_lane_coords), \
+
+           np.array(center_path_coords), left_lane_detected_flag, \
+
+           right_lane_detected_flag, left_poly_deg, right_poly_deg, \
+
+           raw_left_cones_for_plot, raw_right_cones_for_plot
+
+
+
+# =============================================
+
+# ROS 노드 메인 로직 (이하 이전과 동일)
+
+# =============================================
+
+class ConeLaneDetector:
+
+    def __init__(self):
+
+        rospy.init_node('cone_lane_detector_node', anonymous=False)
+
+       
+
+        self.lidar_subscriber = rospy.Subscriber('/scan', LaserScan, self.lidar_callback, queue_size=1)
+
+        self.cone_lanes_publisher = rospy.Publisher('/cone_lanes', ConeLanes, queue_size=1)
+
+       
+
+        self.current_lidar_ranges = None
+
+        self.node_rate = rospy.Rate(10) # Hz
+
+
+
+        if ENABLE_MATPLOTLIB_VIZ:
+
+            plt.ion()
+
+            plt.show()
+
+        rospy.loginfo("Cone Lane Detector Node Initialized (Publisher Enabled).")
+
+
+
+    def lidar_callback(self, msg):
+
+        self.current_lidar_ranges = np.array(msg.ranges[0:360])
+
+
+
+    def run(self):
+
+        rospy.loginfo("Cone Lane Detector Node Running...")
+
+        while not rospy.is_shutdown():
+
+            if self.current_lidar_ranges is not None:
+
+                xy_raw_points = convert_lidar_to_xy(self.current_lidar_ranges)
+
+               
+
+                s_left_coords_np, s_right_coords_np, center_coords_np, \
+
+                l_found, r_found, l_deg, r_deg, \
+
+                raw_left_cones_np, raw_right_cones_np = detect_lanes_from_cones(xy_raw_points)
+
+               
+
+                cone_lanes_msg = ConeLanes()
+
+                cone_lanes_msg.header = std_msgs.msg.Header()
+
+                cone_lanes_msg.header.stamp = rospy.Time.now()
+
+                cone_lanes_msg.header.frame_id = "base_link"
+
+
+
+                cone_lanes_msg.left_lane_detected = l_found
+
+                if s_left_coords_np.size > 0:
+
+                    cone_lanes_msg.left_lane_points = [Point(x=p[0], y=p[1], z=0.0) for p in s_left_coords_np]
+
+                else:
+
+                    cone_lanes_msg.left_lane_points = []
+
+                cone_lanes_msg.left_lane_degree = l_deg
+
+
+
+                cone_lanes_msg.right_lane_detected = r_found
+
+                if s_right_coords_np.size > 0:
+
+                    cone_lanes_msg.right_lane_points = [Point(x=p[0], y=p[1], z=0.0) for p in s_right_coords_np]
+
+                else:
+
+                    cone_lanes_msg.right_lane_points = []
+
+                cone_lanes_msg.right_lane_degree = r_deg
+
+               
+
+                if center_coords_np.size > 0:
+
+                    cone_lanes_msg.center_path = [Point(x=p[0], y=p[1], z=0.0) for p in center_coords_np]
+
+                else:
+
+                    cone_lanes_msg.center_path = []
+
+               
+
+                self.cone_lanes_publisher.publish(cone_lanes_msg)
+
+
+
+                if ENABLE_MATPLOTLIB_VIZ:
+
+                    clustered_viz = cluster_lidar_points(xy_raw_points, CONE_CLUSTER_RADIUS**2)
+
+                    if clustered_viz.shape[0] > 0:
+
+                        raw_lidar_points_plot.set_data(clustered_viz[:,0], clustered_viz[:,1])
+
+                    else:
+
+                        raw_lidar_points_plot.set_data([],[])
+
+                   
+
+                    if l_found and s_left_coords_np.shape[0] > 0:
+
+                        left_lane_plot.set_data(s_left_coords_np[:,0], s_left_coords_np[:,1])
+
+                    else:
+
+                        left_lane_plot.set_data([],[])
+
+                   
+
+                    if r_found and s_right_coords_np.shape[0] > 0:
+
+                        right_lane_plot.set_data(s_right_coords_np[:,0], s_right_coords_np[:,1])
+
+                    else:
+
+                        right_lane_plot.set_data([],[])
+
+
+
+                    if l_found and raw_left_cones_np.shape[0] > 0:
+
+                        raw_left_lane_points_plot.set_data(raw_left_cones_np[:,0], raw_left_cones_np[:,1])
+
+                    else:
+
+                        raw_left_lane_points_plot.set_data([],[])
+
+
+
+                    if r_found and raw_right_cones_np.shape[0] > 0:
+
+                        raw_right_lane_points_plot.set_data(raw_right_cones_np[:,0], raw_right_cones_np[:,1])
+
+                    else:
+
+                        raw_right_lane_points_plot.set_data([],[])
+
+                   
+
+                    if center_coords_np.shape[0] > 0:
+
+                        center_path_plot.set_data(center_coords_np[:,0], center_coords_np[:,1])
+
+                    else:
+
+                        center_path_plot.set_data([],[])
+
+                   
+
+                    try:
+
+                        fig.canvas.draw_idle()
+
+                        plt.pause(0.001)
+
+                    except Exception:
+
+                        pass
+
+           
+
+            self.node_rate.sleep()
+
+
+
+if __name__ == '__main__':
+
+    try:
+
+        detector = ConeLaneDetector()
+
+        detector.run()
+
+    except rospy.ROSInterruptException:
+
+        rospy.loginfo("Cone Lane Detector node terminated.")
+
+    finally:
+
+        if ENABLE_MATPLOTLIB_VIZ:
+
+            plt.ioff()
+
+            plt.close('all')
+
+
+
+아래는 lane_detection.py
+
+#! /usr/bin/env python3
+
+import rospy
+
+import cv2
+
+import numpy as np
+
+from sensor_msgs.msg import Image
+
+from cv_bridge import CvBridge
+
+from xycar_msgs.msg import laneinfo
+
+
+
+
+
+class LaneDetect:
+
+    def __init__(self):
+
+        self.bridge = CvBridge()
+
+        rospy.init_node('lane_detection_node', anonymous=False)
+
+
+
+        # ROS Subscriber & Publisher
+
+        rospy.Subscriber('/usb_cam/image_raw/', Image, self.camera_callback, queue_size=1)
+
+        self.pub = rospy.Publisher("lane_info", laneinfo, queue_size=1)#! /usr/bin/env python3
+
+import rospy
+
+import cv2
+
+import numpy as np
+
+from sensor_msgs.msg import Image
+
+from cv_bridge import CvBridge
+
+from xycar_msgs.msg import laneinfo
+
+
+
+
+
+class LaneDetect:
+
+    def __init__(self):
+
+        self.bridge = CvBridge()
+
+        rospy.init_node('lane_detection_node', anonymous=False)
+
+
+
+        # ROS Subscriber & Publisher
+
+        rospy.Subscriber('/usb_cam/image_raw/', Image, self.camera_callback, queue_size=1)
+
+        self.pub = rospy.Publisher("lane_info", laneinfo, queue_size=1)
+
+
+
+    def camera_callback(self, data):
+
+        img = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
+
+        #img_bottom =     이렇게 y절반으로 위아래 나눠서 스티어(아래) + alpha*스티어(위)    where alpha < 1 하는 방법으로 제어는 어떨련지..?
+
+        #img_top =        그러면 안에 내부 함수에 하드코딩 되어있는 숫자값들을 변수로들로 바꿔야할 것 같습니다요
+
+        lane_info = self.process_image(img)
+
+        self.pub.publish(lane_info)
+
+
+
+    def warpping(self, image): #y=−0.55794x+390.00000 #y=0.56522x+33.91304
+
+        source = np.float32([[161,300], [471,300], [0, 390], [630, 390]]) #순서대로 좌상/우상/좌하/우하
+
+        #source = np.float32([[180,300], [450,300], [0, 420], [639, 420]]) #순서대로 좌상/우상/좌하/우하
+
+        #source = np.float32([[181,280], [431,280], [20, 390], [630, 390]])
+
+        #source = np.float32([[234, 260], [400, 260], [0, 390], [630, 390]])
+
+        #source = np.float32([[237, 260], [400, 260], [0, 390], [630, 390]]) #처음뽑은 값
+
+        #source = np.float32([[280, 280], [520, 280], [0, 430], [800, 430]]) #original
+
+        destination = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
+
+        transform_matrix = cv2.getPerspectiveTransform(source, destination)
+
+        bird_image = cv2.warpPerspective(image, transform_matrix, (260, 260))
+
+        return bird_image
+
+
+
+    def color_filter(self, image):
+
+        lower = np.array([0, 255, 255]) #수정
+
+        upper = np.array([255, 255, 255])
+
+        white_mask = cv2.inRange(image, lower, upper)
+
+        masked = cv2.bitwise_and(image, image, mask=white_mask)
+
+        cv2.rectangle(masked, (80, 80), (180, 260), (0, 0, 0), -1)
+
+        return masked
+
+
+
+    def plothistogram(self, image):
+
+        histogram = np.sum(image[image.shape[0]//2:, :], axis=0)
+
+        midpoint = np.int_(histogram.shape[0]/2)
+
+        leftbase = np.argmax(histogram[:midpoint])
+
+        rightbase = np.argmax(histogram[midpoint:]) + midpoint
+
+        return leftbase, rightbase, histogram
+
+
+
+    def slide_window_search(self, binary_warped, left_current, right_current):
+
+        nwindows = 15
+
+        window_height = np.int_(binary_warped.shape[0] / nwindows)
+
+        nonzero = binary_warped.nonzero()
+
+        nonzero_y = np.array(nonzero[0])
+
+        nonzero_x = np.array(nonzero[1])
+
+        margin = 30
+
+        minpix = 10  
+
+        left_lane = []
+
+        right_lane = []
+
+
+
+        out_img = np.dstack((binary_warped, binary_warped, binary_warped)) * 255
+
+
+
+        for w in range(nwindows):
+
+            win_y_low = binary_warped.shape[0] - (w + 1) * window_height
+
+            win_y_high = binary_warped.shape[0] - w * window_height
+
+           
+
+            # 윈도우 좌표를 이미지 범위 내로 제한
+
+            win_xleft_low = max(0, left_current - margin)
+
+            win_xleft_high = min(binary_warped.shape[1] - 1, left_current + margin)
+
+            win_xright_low = max(0, right_current - margin)
+
+            win_xright_high = min(binary_warped.shape[1] - 1, right_current + margin)
+
+
+
+            cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2)
+
+            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2)
+
+
+
+            good_left = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+
+                        (nonzero_x >= win_xleft_low) & (nonzero_x < win_xleft_high)).nonzero()[0]
+
+            good_right = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+
+                        (nonzero_x >= win_xright_low) & (nonzero_x < win_xright_high)).nonzero()[0]
+
+
+
+            if len(good_left) > minpix:
+
+                left_lane.append(good_left)
+
+                left_current = np.int_(np.mean(nonzero_x[good_left]))  
+
+
+
+            if len(good_right) > minpix:
+
+                right_lane.append(good_right)
+
+                right_current = np.int_(np.mean(nonzero_x[good_right]))
+
+
+
+        left_lane = np.concatenate(left_lane) if len(left_lane) > 0 else np.array([])
+
+        right_lane = np.concatenate(right_lane) if len(right_lane) > 0 else np.array([])
+
+        leftx = nonzero_x[left_lane] if len(left_lane) > 0 else np.array([])
+
+        lefty = nonzero_y[left_lane] if len(left_lane) > 0 else np.array([])
+
+        rightx = nonzero_x[right_lane] if len(right_lane) > 0 else np.array([])
+
+        righty = nonzero_y[right_lane] if len(right_lane) > 0 else np.array([])
+
+
+
+        if len(leftx) > 0 and len(lefty) > 0:
+
+            left_fit = np.polyfit(lefty, leftx, 1)
+
+        else:
+
+            left_fit = [0, 0]
+
+
+
+        if len(rightx) > 0 and len(righty) > 0:
+
+            right_fit = np.polyfit(righty, rightx, 1)
+
+        else:
+
+            right_fit = [0, 0]
+
+
+
+        ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
+
+        left_fitx = left_fit[0] * ploty + left_fit[1]
+
+        right_fitx = right_fit[0] * ploty + right_fit[1]
+
+
+
+        for i in range(len(ploty)):
+
+            cv2.circle(out_img, (int(left_fitx[i]), int(ploty[i])), 1, (255, 255, 0), -1)
+
+            cv2.circle(out_img, (int(right_fitx[i]), int(ploty[i])), 1, (255, 255, 0), -1)
+
+
+
+        return {'left_fitx': left_fitx, 'left_slope': left_fit[0], 'right_fitx': right_fitx, 'right_slope': right_fit[0], 'ploty': ploty}, out_img
+
+
+
+    def detect_lane_color(self, image, left_x, right_x):
+
+        try:
+
+            # HSV 색상 공간으로 변환
+
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+           
+
+            # 흰색 범위 정의
+
+            white_lower = np.array([0, 0, 200])
+
+            white_upper = np.array([180, 30, 255])
+
+           
+
+            # 이미지 크기 확인
+
+            height, width = image.shape[:2]
+
+           
+
+            # 왼쪽 차선 영역이 이미지 내에 있는지 확인
+
+            left_x = int(left_x)
+
+            if 10 <= left_x < width - 10:
+
+                left_roi = hsv[int(height*0.8):, left_x-10:left_x+10]
+
+                left_white = cv2.inRange(left_roi, white_lower, white_upper)
+
+            else:
+
+                return 0  # 왼쪽 차선이 이미지 범위를 벗어남
+
+           
+
+            # 오른쪽 차선 영역이 이미지 내에 있는지 확인
+
+            right_x = int(right_x)
+
+            if 10 <= right_x < width - 10:
+
+                right_roi = hsv[int(height*0.8):, right_x-10:right_x+10]
+
+                right_white = cv2.inRange(right_roi, white_lower, white_upper)
+
+            else:
+
+                return 0  # 오른쪽 차선이 이미지 범위를 벗어남
+
+           
+
+            # 차선 번호 결정 (흰색 차선의 위치만으로 판단)
+
+            left_white_sum = np.sum(left_white)
+
+            right_white_sum = np.sum(right_white)
+
+           
+
+            # 흰색 차선이 더 많이 감지된 쪽을 기준으로 판단
+
+            if left_white_sum > right_white_sum:
+
+                return 1  # 흰색 차선이 왼쪽에 있으면 1차선
+
+            elif right_white_sum > left_white_sum:
+
+                return 2  # 흰색 차선이 오른쪽에 있으면 2차선
+
+            else:
+
+                return 0  # 불확실한 경우
+
+               
+
+        except Exception as e:
+
+            rospy.logwarn(f"차선 색상 감지 중 오류 발생: {str(e)}")
+
+            return 0  # 오류 발생 시 0 반환
+
+
+
+    def get_orange_cone_centers(self, image):
+
+        """주황색 라바콘의 중심점을 추출"""
+
+        try:
+
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+            lower_orange = np.array([5, 100, 100])
+
+            upper_orange = np.array([20, 255, 255])
+
+            mask = cv2.inRange(hsv, lower_orange, upper_orange)
+
+           
+
+            # 팽창 적용
+
+            kernel = np.ones((3, 3), np.uint8)
+
+            mask = cv2.dilate(mask, kernel, iterations=2)
+
+           
+
+            # 전체 이미지에서 라바콘 검출
+
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            centers = []
+
+
+
+            for cnt in contours:
+
+                area = cv2.contourArea(cnt)
+
+                if area > 5:  # 최소 면적 조건
+
+                    M = cv2.moments(cnt)
+
+                    if M["m00"] != 0:
+
+                        cx = int(M["m10"] / M["m00"])
+
+                        cy = int(M["m01"] / M["m00"])  # 오프셋 제거
+
+                        centers.append((cx, cy))
+
+           
+
+            # 중심점을 x좌표 기준으로 정렬
+
+            centers.sort(key=lambda x: x[0])
+
+            return centers
+
+        except Exception as e:
+
+            rospy.logwarn(f"라바콘 중심점 추출 중 오류 발생: {str(e)}")
+
+            return []
+
+
+
+    def detect_orange_cone(self, image):
+
+        """버드아이뷰 이미지에서 주황색 라바콘을 감지"""
+
+        try:
+
+            # HSV 색상 공간으로 변환
+
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+            lower_orange = np.array([5, 100, 100])
+
+            upper_orange = np.array([20, 255, 255])
+
+            mask = cv2.inRange(hsv, lower_orange, upper_orange)
+
+           
+
+            # 오렌지 픽셀이 하나라도 있으면 라바콘이 있다고 판단
+
+            return np.any(mask > 0)
+
+        except Exception as e:
+
+            rospy.logwarn(f"라바콘 감지 중 오류 발생: {str(e)}")
+
+            return False
+
+
+
+    def orange_mask(self, image):
+
+        """주황색 영역을 추출한 이진화 이미지 생성"""
+
+        try:
+
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+            lower_orange = np.array([5, 100, 100])
+
+            upper_orange = np.array([20, 255, 255])
+
+            mask = cv2.inRange(hsv, lower_orange, upper_orange)
+
+           
+
+            # 팽창 적용 (라바콘 픽셀 확장)
+
+            kernel = np.ones((3, 3), np.uint8)
+
+            mask = cv2.dilate(mask, kernel, iterations=2)
+
+            return mask
+
+        except Exception as e:
+
+            rospy.logwarn(f"주황색 마스크 생성 중 오류 발생: {str(e)}")
+
+            return None
+
+
+
+    def fit_cones(self, cones):
+
+        """라바콘 중심점들로부터 2차 곡선 계수를 계산"""
+
+        if len(cones) >= 3:
+
+            x = np.array([pt[0] for pt in cones])
+
+            y = np.array([pt[1] for pt in cones])
+
+            return np.polyfit(y, x, 2)  # y 기준
+
+        return None
+
+
+
+    def process_image(self, img):
+
+        # Step 1: BEV 변환
+
+        warpped_img = self.warpping(img)
+
+
+
+        # Step 2: Blurring을 통해 노이즈를 제거
+
+        blurred_img = cv2.GaussianBlur(warpped_img, (0, 0), 1)
+
+
+
+        # Step 3: 색상 필터링 및 이진화 (차선용)
+
+        filtered_img = self.color_filter(blurred_img)
+
+        gray_img = cv2.cvtColor(filtered_img, cv2.COLOR_BGR2GRAY)
+
+        _, binary_img = cv2.threshold(gray_img, 170, 255, cv2.THRESH_BINARY)
+
+
+
+        # Step 4: 주황색 라바콘 마스크 생성
+
+        binary_orange_img = self.orange_mask(warpped_img)
+
+        cone_detected = self.detect_orange_cone(warpped_img)  # 라바콘 감지 여부
+
+        cone_centers = self.get_orange_cone_centers(warpped_img) if cone_detected else []
+
+
+
+        if cone_detected:
+
+            rospy.loginfo("라바콘 감지됨 (오렌지 픽셀 존재)")
+
+            if len(cone_centers) >= 2:
+
+                rospy.loginfo(f"라바콘 중심점 {len(cone_centers)}개 검출 - 경로 생성 가능")
+
+            else:
+
+                rospy.loginfo(f"라바콘 중심점 {len(cone_centers)}개 검출 - 경로 생성 불가")
+
+
+
+        # 결과 이미지 초기화
+
+        out_img = np.dstack((binary_orange_img, binary_orange_img, binary_orange_img)) * 255 if binary_orange_img is not None else np.dstack((binary_img, binary_img, binary_img)) * 255
+
+
+
+        # Step 5: 라바콘 또는 차선 기반으로 경로 생성
+
+        if cone_detected and len(cone_centers) >= 2:  # 최소 2개의 라바콘이 필요
+
+            # 라바콘 중심점을 좌우로 분리
+
+            left_cones = []
+
+            right_cones = []
+
+            center_x = warpped_img.shape[1] // 2  # 이미지 중앙 x좌표
+
+           
+
+            for pt in cone_centers:
+
+                if pt[0] < center_x:
+
+                    left_cones.append(pt)
+
+                else:
+
+                    right_cones.append(pt)
+
+
+
+            # 좌우 라바콘에 대해 각각 곡선 fitting
+
+            left_fit = self.fit_cones(left_cones)
+
+            right_fit = self.fit_cones(right_cones)
+
+
+
+            if left_fit is not None and right_fit is not None:
+
+                # 곡선 포인트 생성 (이미지 전체에 대해)
+
+                h = warpped_img.shape[0]
+
+                ploty = np.linspace(0, h - 1, 15)  # 전체 높이에 15개의 윈도우
+
+                left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+
+                right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+
+
+
+                # 곡선을 따라 슬라이딩 윈도우 시각화
+
+                for y, lx, rx in zip(ploty, left_fitx, right_fitx):
+
+                    y_low = int(y - 10)
+
+                    y_high = int(y + 10)
+
+                    lx, rx = int(lx), int(rx)
+
+                    # 왼쪽 윈도우
+
+                    cv2.rectangle(out_img, (lx-15, y_low), (lx+15, y_high), (0, 255, 0), 1)
+
+                    # 오른쪽 윈도우
+
+                    cv2.rectangle(out_img, (rx-15, y_low), (rx+15, y_high), (0, 255, 0), 1)
+
+
+
+                # 라바콘 중심점 시각화
+
+                for pt in left_cones:
+
+                    cv2.circle(out_img, pt, 5, (0, 0, 255), -1)  # 왼쪽 라바콘: 빨간색
+
+                for pt in right_cones:
+
+                    cv2.circle(out_img, pt, 5, (255, 0, 0), -1)  # 오른쪽 라바콘: 파란색
+
+
+
+                rospy.loginfo("✅ 라바콘 기반 곡선 추적 완료 (전체 이미지)")
+
+
+
+                # ROS 메시지 생성
+
+                pub_msg = laneinfo()
+
+               
+
+                # 왼쪽 차선 정보 (마지막 윈도우 기준)
+
+                pub_msg.left_x = 130.0 - np.float32(left_fitx[-1])
+
+                pub_msg.left_y = np.float32(ploty[-1])
+
+                pub_msg.left_slope = np.float32(np.arctan(2*left_fit[0]*ploty[-1] + left_fit[1]))
+
+
+
+                # 오른쪽 차선 정보 (마지막 윈도우 기준)
+
+                pub_msg.right_x = np.float32(right_fitx[-1]) - 130.0
+
+                pub_msg.right_y = np.float32(ploty[-1])
+
+                pub_msg.right_slope = np.float32(np.arctan(2*right_fit[0]*ploty[-1] + right_fit[1]))
+
+
+
+                # 차선 번호 설정 (라바콘 감지 시 1차선으로 가정)
+
+                pub_msg.lane_number = 1
+
+               
+
+                # 라바콘 감지 상태 설정
+
+                pub_msg.cone_detected = True
+
+            else:
+
+                # 곡선 fitting 실패 시 기존 차선 방식으로 전환
+
+                left_base, right_base, hist = self.plothistogram(binary_img)
+
+                draw_info, out_img = self.slide_window_search(binary_img, left_base, right_base)
+
+               
+
+                # ROS 메시지 생성
+
+                pub_msg = laneinfo()
+
+               
+
+                # 왼쪽 차선 정보
+
+                pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])
+
+                pub_msg.left_y = np.float32(draw_info['ploty'][-1])
+
+                slope_left = draw_info['left_slope']
+
+                pub_msg.left_slope = np.float32(np.arctan(slope_left))
+
+
+
+                # 오른쪽 차선 정보
+
+                pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0
+
+                pub_msg.right_y = np.float32(draw_info['ploty'][-1])
+
+                slope_right = draw_info['right_slope']
+
+                pub_msg.right_slope = np.float32(np.arctan(slope_right))
+
+
+
+                # 차선 번호 설정
+
+                pub_msg.lane_number = self.detect_lane_color(warpped_img, draw_info['left_fitx'][-1], draw_info['right_fitx'][-1])
+
+               
+
+                # 라바콘 감지 상태 설정
+
+                pub_msg.cone_detected = False
+
+        else:
+
+            # 기존 차선 히스토그램 사용
+
+            left_base, right_base, hist = self.plothistogram(binary_img)
+
+            draw_info, out_img = self.slide_window_search(binary_img, left_base, right_base)
+
+           
+
+            # ROS 메시지 생성
+
+            pub_msg = laneinfo()
+
+           
+
+            # 왼쪽 차선 정보
+
+            pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])
+
+            pub_msg.left_y = np.float32(draw_info['ploty'][-1])
+
+            slope_left = draw_info['left_slope']
+
+            pub_msg.left_slope = np.float32(np.arctan(slope_left))
+
+
+
+            # 오른쪽 차선 정보
+
+            pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0
+
+            pub_msg.right_y = np.float32(draw_info['ploty'][-1])
+
+            slope_right = draw_info['right_slope']
+
+            pub_msg.right_slope = np.float32(np.arctan(slope_right))
+
+
+
+            # 차선 번호 설정
+
+            pub_msg.lane_number = self.detect_lane_color(warpped_img, draw_info['left_fitx'][-1], draw_info['right_fitx'][-1])
+
+           
+
+            # 라바콘 감지 상태 설정
+
+            pub_msg.cone_detected = False
+
+
+
+        # 이미지 크기 조절
+
+        display_size = (640, 480)
+
+        img_resized = cv2.resize(img, display_size)
+
+        warpped_resized = cv2.resize(warpped_img, (260, 260))
+
+        blurred_resized = cv2.resize(blurred_img, (260, 260))
+
+        filtered_resized = cv2.resize(filtered_img, (260, 260))
+
+        gray_resized = cv2.resize(gray_img, (260, 260))
+
+        binary_resized = cv2.resize(binary_img, (260, 260))
+
+        out_resized = cv2.resize(out_img, (260, 260))
+
+
+
+        # 디버깅용 이미지 표시
+
+        cv2.imshow("raw_img", img_resized)
+
+        cv2.imshow("bird_img", warpped_resized)
+
+        if binary_orange_img is not None:
+
+            orange_resized = cv2.resize(binary_orange_img, (260, 260))
+
+            cv2.imshow("orange_mask", orange_resized)
+
+        cv2.imshow("result_img", out_resized)
+
+        cv2.waitKey(1)
+
+        return pub_msg
+
+
+
+if __name__ == "__main__":
+
+    LaneDetect()
+
+    rospy.spin()
+
+
+
+    def camera_callback(self, data):
+
+        img = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
+
+        #img_bottom =     이렇게 y절반으로 위아래 나눠서 스티어(아래) + alpha*스티어(위)    where alpha < 1 하는 방법으로 제어는 어떨련지..?
+
+        #img_top =        그러면 안에 내부 함수에 하드코딩 되어있는 숫자값들을 변수로들로 바꿔야할 것 같습니다요
+
+        lane_info = self.process_image(img)
+
+        self.pub.publish(lane_info)
+
+
+
+    def warpping(self, image): #y=−0.55794x+390.00000 #y=0.56522x+33.91304
+
+        source = np.float32([[161,300], [471,300], [0, 390], [630, 390]]) #순서대로 좌상/우상/좌하/우하
+
+        #source = np.float32([[180,300], [450,300], [0, 420], [639, 420]]) #순서대로 좌상/우상/좌하/우하
+
+        #source = np.float32([[181,280], [431,280], [20, 390], [630, 390]])
+
+        #source = np.float32([[234, 260], [400, 260], [0, 390], [630, 390]])
+
+        #source = np.float32([[237, 260], [400, 260], [0, 390], [630, 390]]) #처음뽑은 값
+
+        #source = np.float32([[280, 280], [520, 280], [0, 430], [800, 430]]) #original
+
+        destination = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
+
+        transform_matrix = cv2.getPerspectiveTransform(source, destination)
+
+        bird_image = cv2.warpPerspective(image, transform_matrix, (260, 260))
+
+        return bird_image
+
+
+
+    def color_filter(self, image):
+
+        lower = np.array([0, 255, 255]) #수정
+
+        upper = np.array([255, 255, 255])
+
+        white_mask = cv2.inRange(image, lower, upper)
+
+        masked = cv2.bitwise_and(image, image, mask=white_mask)
+
+        cv2.rectangle(masked, (80, 80), (180, 260), (0, 0, 0), -1)
+
+        return masked
+
+
+
+    def plothistogram(self, image):
+
+        histogram = np.sum(image[image.shape[0]//2:, :], axis=0)
+
+        midpoint = np.int_(histogram.shape[0]/2)
+
+        leftbase = np.argmax(histogram[:midpoint])
+
+        rightbase = np.argmax(histogram[midpoint:]) + midpoint
+
+        return leftbase, rightbase, histogram
+
+
+
+    def slide_window_search(self, binary_warped, left_current, right_current):
+
+        nwindows = 15
+
+        window_height = np.int_(binary_warped.shape[0] / nwindows)
+
+        nonzero = binary_warped.nonzero()
+
+        nonzero_y = np.array(nonzero[0])
+
+        nonzero_x = np.array(nonzero[1])
+
+        margin = 30
+
+        minpix = 10  
+
+        left_lane = []
+
+        right_lane = []
+
+
+
+        out_img = np.dstack((binary_warped, binary_warped, binary_warped)) * 255
+
+
+
+        for w in range(nwindows):
+
+            win_y_low = binary_warped.shape[0] - (w + 1) * window_height
+
+            win_y_high = binary_warped.shape[0] - w * window_height
+
+            win_xleft_low = left_current - margin
+
+            win_xleft_high = left_current + margin
+
+            win_xright_low = right_current - margin
+
+            win_xright_high = right_current + margin
+
+
+
+            cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2)
+
+            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2)
+
+
+
+            good_left = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+
+                        (nonzero_x >= win_xleft_low) & (nonzero_x < win_xleft_high)).nonzero()[0]
+
+            good_right = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+
+                        (nonzero_x >= win_xright_low) & (nonzero_x < win_xright_high)).nonzero()[0]
+
+
+
+            if len(good_left) > minpix:
+
+                left_lane.append(good_left)
+
+                left_current = np.int_(np.mean(nonzero_x[good_left]))  
+
+
+
+            if len(good_right) > minpix:
+
+                right_lane.append(good_right)
+
+                right_current = np.int_(np.mean(nonzero_x[good_right]))
+
+
+
+        left_lane = np.concatenate(left_lane) if len(left_lane) > 0 else np.array([])
+
+        right_lane = np.concatenate(right_lane) if len(right_lane) > 0 else np.array([])
+
+        leftx = nonzero_x[left_lane] if len(left_lane) > 0 else np.array([])
+
+        lefty = nonzero_y[left_lane] if len(left_lane) > 0 else np.array([])
+
+        rightx = nonzero_x[right_lane] if len(right_lane) > 0 else np.array([])
+
+        righty = nonzero_y[right_lane] if len(right_lane) > 0 else np.array([])
+
+
+
+        if len(leftx) > 0 and len(lefty) > 0:
+
+            left_fit = np.polyfit(lefty, leftx, 1)
+
+        else:
+
+            left_fit = [0, 0]
+
+
+
+        if len(rightx) > 0 and len(righty) > 0:
+
+            right_fit = np.polyfit(righty, rightx, 1)
+
+        else:
+
+            right_fit = [0, 0]
+
+
+
+        ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
+
+        left_fitx = left_fit[0] * ploty + left_fit[1]
+
+        right_fitx = right_fit[0] * ploty + right_fit[1]
+
+
+
+        for i in range(len(ploty)):
+
+            cv2.circle(out_img, (int(left_fitx[i]), int(ploty[i])), 1, (255, 255, 0), -1)
+
+            cv2.circle(out_img, (int(right_fitx[i]), int(ploty[i])), 1, (255, 255, 0), -1)
+
+
+
+        return {'left_fitx': left_fitx, 'left_slope': left_fit[0], 'right_fitx': right_fitx, 'right_slope': right_fit[0], 'ploty': ploty}, out_img
+
+
+
+    def detect_lane_color(self, image, left_x, right_x):
+
+        try:
+
+            # HSV 색상 공간으로 변환
+
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+           
+
+            # 흰색 범위 정의
+
+            white_lower = np.array([0, 0, 200])
+
+            white_upper = np.array([180, 30, 255])
+
+           
+
+            # 이미지 크기 확인
+
+            height, width = image.shape[:2]
+
+           
+
+            # 왼쪽 차선 영역이 이미지 내에 있는지 확인
+
+            left_x = int(left_x)
+
+            if 10 <= left_x < width - 10:
+
+                left_roi = hsv[int(height*0.8):, left_x-10:left_x+10]
+
+                left_white = cv2.inRange(left_roi, white_lower, white_upper)
+
+            else:
+
+                return 0  # 왼쪽 차선이 이미지 범위를 벗어남
+
+           
+
+            # 오른쪽 차선 영역이 이미지 내에 있는지 확인
+
+            right_x = int(right_x)
+
+            if 10 <= right_x < width - 10:
+
+                right_roi = hsv[int(height*0.8):, right_x-10:right_x+10]
+
+                right_white = cv2.inRange(right_roi, white_lower, white_upper)
+
+            else:
+
+                return 0  # 오른쪽 차선이 이미지 범위를 벗어남
+
+           
+
+            # 차선 번호 결정 (흰색 차선의 위치만으로 판단)
+
+            left_white_sum = np.sum(left_white)
+
+            right_white_sum = np.sum(right_white)
+
+           
+
+            # 흰색 차선이 더 많이 감지된 쪽을 기준으로 판단
+
+            if left_white_sum > right_white_sum:
+
+                return 1  # 흰색 차선이 왼쪽에 있으면 1차선
+
+            elif right_white_sum > left_white_sum:
+
+                return 2  # 흰색 차선이 오른쪽에 있으면 2차선
+
+            else:
+
+                return 0  # 불확실한 경우
+
+               
+
+        except Exception as e:
+
+            rospy.logwarn(f"차선 색상 감지 중 오류 발생: {str(e)}")
+
+            return 0  # 오류 발생 시 0 반환
+
+
+
+    def process_image(self, img):
+
+        # Step 1: BEV 변환
+
+        warpped_img = self.warpping(img)
+
+
+
+        # Step 2: Blurring을 통해 노이즈를 제거
+
+        blurred_img = cv2.GaussianBlur(warpped_img, (0, 0), 1)
+
+
+
+        # Step 3: 색상 필터링 및 이진화
+
+        filtered_img = self.color_filter(blurred_img)
+
+        gray_img = cv2.cvtColor(filtered_img, cv2.COLOR_BGR2GRAY)
+
+        _, binary_img = cv2.threshold(gray_img, 170, 255, cv2.THRESH_BINARY)
+
+
+
+        # Step 4: 히스토그램
+
+        left_base, right_base, hist = self.plothistogram(binary_img)
+
+
+
+        # Step 5: 슬라이딩 윈도우
+
+        draw_info, out_img = self.slide_window_search(binary_img, left_base, right_base)
+
+
+
+        # Step 6: 차선 색상 감지
+
+        lane_number = self.detect_lane_color(warpped_img, draw_info['left_fitx'][-1], draw_info['right_fitx'][-1])
+
+       
+
+        # 차선 번호 출력
+
+        if lane_number == 1:
+
+            rospy.loginfo("현재 1차선 주행 중")
+
+        elif lane_number == 2:
+
+            rospy.loginfo("현재 2차선 주행 중")
+
+        else:
+
+            rospy.loginfo("차선 감지 불확실")
+
+
+
+        # Step 7: ROS 메시지 생성 및 발행
+
+        pub_msg = laneinfo()
+
+
+
+        # 왼쪽 차선 정보
+
+        pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])
+
+        pub_msg.left_y = np.float32(draw_info['ploty'][-1])
+
+        slope_left = draw_info['left_slope']
+
+        pub_msg.left_slope = np.float32(np.arctan(slope_left))
+
+
+
+        # 오른쪽 차선 정보
+
+        pub_msg.right_x = np.float32(draw_info['right_fitx'][-1]) - 130.0
+
+        pub_msg.right_y = np.float32(draw_info['ploty'][-1])
+
+        slope_right = draw_info['right_slope']
+
+        pub_msg.right_slope = np.float32(np.arctan(slope_right))
+
+
+
+        # 차선 번호 설정
+
+        pub_msg.lane_number = lane_number
+
+
+
+        # 이미지 크기 조절
+
+        display_size = (640, 480)
+
+        img_resized = cv2.resize(img, display_size)
+
+        warpped_resized = cv2.resize(warpped_img, (260, 260))
+
+        blurred_resized = cv2.resize(blurred_img, (260, 260))
+
+        filtered_resized = cv2.resize(filtered_img, (260, 260))
+
+        gray_resized = cv2.resize(gray_img, (260, 260))
+
+        binary_resized = cv2.resize(binary_img, (260, 260))
+
+        out_resized = cv2.resize(out_img, (260, 260))
+
+
+
+        # 디버깅용 이미지 표시
+
+        cv2.imshow("raw_img", img_resized)
+
+        cv2.imshow("bird_img", warpped_resized)
+
+        #cv2.imshow('blur_img', blurred_resized)
+
+        #cv2.imshow("filter_img", filtered_resized)
+
+        #cv2.imshow("gray_img", gray_resized)
+
+        #cv2.imshow("binary_img", binary_resized)
+
+        cv2.imshow("result_img", out_resized)
+
+        cv2.waitKey(1)
+
+        return pub_msg
+
+
+
+if __name__ == "__main__":
+
+    LaneDetect()
+
+    rospy.spin()
+
+
+
+아래는 track_drive.py
+
+#!/usr/bin/env python
+
+# -*- coding: utf-8 -*- 2
+
+#=============================================
+
+# 본 프로그램은 2025 제8회 국민대 자율주행 경진대회에서
+
+# 예선과제를 수행하기 위한 파일입니다.
+
+# 예선과제 수행 용도로만 사용가능하며 외부유출은 금지됩니다.
+
+#=============================================
+
+# 함께 사용되는 각종 파이썬 패키지들의 import 선언부
+
+#=============================================
+
+import numpy as np
+
+import cv2, rospy, time, os, math
+
+from sensor_msgs.msg import Image
+
+from xycar_msgs.msg import XycarMotor
+
+from xycar_msgs.msg import laneinfo
+
+from cv_bridge import CvBridge
+
+from sensor_msgs.msg import LaserScan
+
+import matplotlib.pyplot as plt
+
+
+
+#=============================================
+
+# 프로그램에서 사용할 변수, 저장공간 선언부
+
+#=============================================
+
+image = np.empty(shape=[0])  # 카메라 이미지를 담을 변수
+
+ranges = None  # 라이다 데이터를 담을 변수
+
+motor = None  # 모터노드
+
+motor_msg = XycarMotor()  # 모터 토픽 메시지
+
+Fix_Speed = 37 #원래 10  # 모터 속도 고정 상수값
+
+new_angle = 0  # 모터 조향각 초기값
+
+new_speed = Fix_Speed  # 모터 속도 초기값
+
+bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지
+
+lane_data = None  # 차선 정보를 담을 변수
+
+k_p = Fix_Speed/25
+
+k_para = 20
+
+k_lateral = 5
+
+light_go = False  # ← 초록불 인식 후 출발 유지
+
+L = 0.5
+
+
+
+#차량 감지 관련
+
+vehicle_ahead = False
+
+detection_success_streak = 0
+
+DETECTION_DISTANCE_LOW = 5.0
+
+DETECTION_DISTANCE_HIGH = 40.0
+
+DETECTION_COUNT    = 4      # 연속으로 이만큼 포인트가 잡히면 차량으로 판정
+
+SECTOR_WIDTH       = 7      # 앞 0번 인덱스 기준으로 ±2 인덱스 조사
+
+DETECTION_STREAK_THRESHOLD = 2     # 스캔이 연속으로 성공해야 할 횟수
+
+
+
+# 차선 번호 관련 변수
+
+current_lane = 0  # 현재 차선 번호 (0: 불확실, 1: 1차선, 2: 2차선)
+
+is_lane_changing = False  # 차선 변경 중인지 여부
+
+lane_change_path = []  # 차선 변경 경로
+
+lane_change_direction = 0  # 차선 변경 방향 (1: 우회전, -1: 좌회전)
+
+lane_change_start_time = 0  # 차선 변경 시작 시간
+
+last_lane_change_time = 0  # 마지막 차선 변경 시간
+
+#LANE_CHANGE_INTERVAL = 6.0  #폐기 # 차선 변경 간격 (초)
+
+LANE_CHANGE_DURATION = 1.65  #3.0  차선 변경 소요 시간 (초)
+
+PATH_POINTS = 20  #30 # 경로 생성 시 샘플링할 포인트 수
+
+LANE_CHANGE_DISTANCE = 230 #200  # 차선 변경 시 전방 주시 거리
+
+CONE_SPEED = 8  # 라바콘 감지 시 속도 제어
+
+CONE_SPEED_DURATION = 5.0  # 라바콘 감지 후 속도 유지 시간
+
+last_cone_detection_time = 0  # 마지막 라바콘 감지 시간
+
+
+
+# 이미지 관련 상수
+
+IMAGE_WIDTH = 260  # 이미지 너비
+
+IMAGE_HEIGHT = 260  # 이미지 높이
+
+BASE_X = 130  # 이미지 중앙 x좌표
+
+BASE_Y = 260  # 이미지 하단 y좌표
+
+
+
+# 차선 감지 관련 변수 추가
+
+right_lane_missing_time = 0  # 오른쪽 차선 미감지 시작 시간
+
+left_lane_missing_time = 0   # 왼쪽 차선 미감지 시작 시간
+
+LANE_MISSING_THRESHOLD = 2.0  # 차선 미감지 임계값 (초)
+
+last_right_lane_detected = True  # 이전 프레임에서 오른쪽 차선 감지 여부
+
+last_left_lane_detected = True   # 이전 프레임에서 왼쪽 차선 감지 여부
+
+
+
+#=============================================
+
+# 라이다 스캔정보로 그림을 그리기 위한 변수
+
+#=============================================
+
+fig, ax = plt.subplots(figsize=(8, 8))
+
+ax.set_xlim(-120, 120)
+
+ax.set_ylim(-120, 120)
+
+ax.set_aspect('equal')
+
+lidar_points, = ax.plot([], [], 'bo')
+
+
+
+#=============================================
+
+# 콜백함수 - 카메라 토픽을 처리하는 콜백함수
+
+#=============================================
+
+def usbcam_callback(data):
+
+    global image
+
+    image = bridge.imgmsg_to_cv2(data, "bgr8")
+
+   
+
+#=============================================
+
+# 콜백함수 - 라이다 토픽을 받아서 처리하는 콜백함수
+
+#=============================================
+
+def lidar_callback(data):
+
+    global ranges, vehicle_ahead, detection_success_streak
+
+    ranges = data.ranges[0:360]
+
+
+
+    # 1) 이번 스캔에서 공간적으로 연속된 DETECTION_COUNT 점이 감지됐는지 판정
+
+    detected_this_scan = False
+
+    consec = 0
+
+    for offset in range(-SECTOR_WIDTH, SECTOR_WIDTH+1):
+
+        d = ranges[offset % 360]
+
+        if DETECTION_DISTANCE_LOW < d < DETECTION_DISTANCE_HIGH:
+
+            consec += 1
+
+            if consec >= DETECTION_COUNT:
+
+                detected_this_scan = True
+
+                break
+
+        else:
+
+            consec = 0
+
+
+
+    # 2) 연속 성공 카운터 갱신
+
+    if detected_this_scan:
+
+        detection_success_streak += 1
+
+    else:
+
+        detection_success_streak = 0
+
+
+
+    # 3) 3번 연속 스캔 성공 시에만 플래그 ON
+
+    if detection_success_streak >= DETECTION_STREAK_THRESHOLD:
+
+        vehicle_ahead = True
+
+    else:
+
+        vehicle_ahead = False
+
+
+
+def lane_callback(data):
+
+    global lane_data, current_lane, is_lane_changing, lane_change_path
+
+    global lane_change_direction, lane_change_start_time, last_lane_change_time
+
+    lane_data = data
+
+   
+
+    # 현재 시간 확인
+
+    current_time = time.time()
+
+
+
+    # 실측 lane 번호 업데이트
+
+    if data.lane_number in [1, 2]:
+
+        current_lane = data.lane_number
+
+
+
+    # 차선 변경 조건
+
+    if not is_lane_changing and vehicle_ahead:
+
+        is_lane_changing = True
+
+        lane_change_start_time = current_time
+
+        last_lane_change_time = current_time
+
+
+
+        target_lane = 2 if current_lane == 1 else 1
+
+
+
+        # 현재 차선 중심점 계산
+
+        if data.left_x != 130 and data.right_x != -130:
+
+            start_x = (data.left_x + data.right_x) / 2
+
+        elif data.left_x != 130:
+
+            start_x = data.left_x + 75
+
+        elif data.right_x != -130:
+
+            start_x = data.right_x - 75
+
+        else:
+
+            start_x = BASE_X  # 기본값으로 이미지 중앙 사용
+
+
+
+        lane_change_path, lane_change_direction = generate_lane_change_path(
+
+            current_lane, target_lane,
+
+            start_x, data.left_x, data.right_x
+
+        )
+
+
+
+        rospy.loginfo(f"차선 변경 시작: {current_lane} → {target_lane}")
+
+
+
+#=============================================
+
+# 신호등 검출 함수
+
+#=============================================
+
+def detect_traffic_light(img):
+
+    h, w = img.shape[:2]
+
+    roi = img[0:int(h*0.2), int(w*0.35):int(w*0.65)]
+
+    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+
+
+
+    lower_r1 = np.array([0, 120, 70]);   upper_r1 = np.array([10, 255, 255])
+
+    lower_r2 = np.array([170, 120, 70]); upper_r2 = np.array([180, 255, 255])
+
+    mask_r = cv2.bitwise_or(cv2.inRange(hsv, lower_r1, upper_r1),
+
+                            cv2.inRange(hsv, lower_r2, upper_r2))
+
+
+
+    lower_y = np.array([15, 100, 100]); upper_y = np.array([35, 255, 255])
+
+    mask_y = cv2.inRange(hsv, lower_y, upper_y)
+
+
+
+    lower_g = np.array([40, 50, 50]); upper_g = np.array([90, 255, 255])
+
+    mask_g = cv2.inRange(hsv, lower_g, upper_g)
+
+
+
+    r_cnt = cv2.countNonZero(mask_r)
+
+    y_cnt = cv2.countNonZero(mask_y)
+
+    g_cnt = cv2.countNonZero(mask_g)
+
+    total = roi.shape[0] * roi.shape[1]
+
+
+
+    if r_cnt > 0.01 * total:
+
+        return 'red'
+
+    elif y_cnt > 0.01 * total:
+
+        return 'yellow'
+
+    elif g_cnt > 0.01 * total:
+
+        return 'green'
+
+    else:
+
+        return 'none'
+
+
+
+#=============================================
+
+# 모터로 토픽을 발행하는 함수
+
+#=============================================
+
+def drive(angle, speed):
+
+    motor_msg.angle = float(angle)
+
+    motor_msg.speed = float(speed)
+
+    motor.publish(motor_msg)
+
+
+
+#=============================================
+
+# 차선 정보를 기반으로 조향각을 계산하는 함수
+
+#=============================================
+
+def kanayama_control():
+
+    global lane_data, current_lane, is_lane_changing
+
+    global lane_change_path, lane_change_direction, lane_change_start_time
+
+    global L, last_cone_detection_time
+
+    global CONE_SPEED, CONE_SPEED_DURATION
+
+    global right_lane_missing_time, left_lane_missing_time
+
+    global last_right_lane_detected, last_left_lane_detected
+
+    global LANE_MISSING_THRESHOLD
+
+   
+
+    if lane_data is None:
+
+        return 0.0, Fix_Speed
+
+
+
+    # 차선 변경 중인 경우
+
+    if is_lane_changing and lane_change_path:
+
+        current_time = time.time()
+
+       
+
+        # 차선 변경 완료 조건 확인
+
+        if current_time - lane_change_start_time > LANE_CHANGE_DURATION:
+
+            is_lane_changing = False
+
+            lane_change_path = []
+
+            lane_change_direction = 0
+
+            rospy.loginfo("차선 변경 완료")
+
+        else:
+
+            # 현재 차선 중심점 계산
+
+            if lane_data.left_x != 130 and lane_data.right_x != -130:
+
+                current_x = (lane_data.left_x + lane_data.right_x) / 2
+
+            elif lane_data.left_x != 130:
+
+                current_x = lane_data.left_x + 75
+
+            elif lane_data.right_x != -130:
+
+                current_x = lane_data.right_x - 75
+
+            else:
+
+                current_x = BASE_X  # 기본값으로 이미지 중앙 사용
+
+
+
+            # 차선 변경 제어
+
+            steering_angle = lane_change_control(
+
+                lane_change_path,
+
+                current_x, BASE_Y,  # 실제 차량 위치 사용
+
+                math.radians(-(lane_data.left_slope + lane_data.right_slope)/2),
+
+                lane_change_direction
+
+            )
+
+            increased_speed = Fix_Speed*1.15
+
+            steering_angle = steering_angle*1.1
+
+            return steering_angle, increased_speed
+
+
+
+    # 기존의 kanayama_control 로직
+
+    left_x = lane_data.left_x
+
+    right_x = lane_data.right_x
+
+    left_slope = lane_data.left_slope
+
+    right_slope = lane_data.right_slope
+
+    lane_width = 3.5
+
+   
+
+    # 파라미터
+
+    K_y = 0.85
+
+    K_phi = 3.0
+
+    v_r = Fix_Speed
+
+   
+
+    # 라바콘 감지 시 속도 제어 및 조향각 조정
+
+    current_time = time.time()
+
+    if lane_data.cone_detected:
+
+        last_cone_detection_time = current_time
+
+        v_r = CONE_SPEED
+
+        # 라바콘 주행 모드에서는 조향각을 더 급격하게 조정
+
+        K_y = 2.0  # 기존 0.85에서 증가
+
+        K_phi = 5.0  # 기존 3.0에서 증가
+
+        rospy.loginfo("라바콘 감지: 속도 %.2f km/h로 감속, 조향각 민감도 증가", v_r)
+
+    elif current_time - last_cone_detection_time < CONE_SPEED_DURATION:
+
+        v_r = CONE_SPEED
+
+        # 라바콘 감지 후 일정 시간 동안도 조향각 민감도 유지
+
+        K_y = 2.0
+
+        K_phi = 5.0
+
+        rospy.loginfo("라바콘 감지 후 %.1f초 경과: 속도 %.2f km/h 유지, 조향각 민감도 유지",
+
+                     current_time - last_cone_detection_time, v_r)
+
+    else:
+
+        # 일반 주행 모드에서는 기본값 사용
+
+        K_y = 0.85
+
+        K_phi = 3.0
+
+   
+
+    # lateral_err, heading_err 계산 (주신 코드 참고)
+
+    current_time = time.time()
+
+   
+
+    if left_x == 130 and right_x == -130:
+
+        rospy.logwarn("Both lanes lost, skipping control.")
+
+        return 0.0, Fix_Speed
+
+    elif left_x == 130:
+
+        # 왼쪽 차선이 감지되지 않을 때
+
+        if not last_left_lane_detected:
+
+            # 이전에도 왼쪽 차선이 없었다면 시간 체크
+
+            if left_lane_missing_time == 0:
+
+                left_lane_missing_time = current_time
+
+            elif current_time - left_lane_missing_time >= LANE_MISSING_THRESHOLD:
+
+                # 2초 이상 왼쪽 차선이 없으면 오른쪽으로 차선 변경
+
+                lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
+
+                heading_err = right_slope
+
+                steering_angle = 30.0  # 오른쪽으로 30도 조향
+
+                rospy.loginfo("왼쪽 차선 2초 이상 미감지: 오른쪽으로 차선 변경 시도 (조향각: %.1f도)", steering_angle)
+
+                return steering_angle, v_r
+
+        else:
+
+            # 이전에는 왼쪽 차선이 있었던 경우
+
+            left_lane_missing_time = current_time
+
+            last_left_lane_detected = False
+
+           
+
+        lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
+
+        heading_err = right_slope
+
+    elif right_x == -130:
+
+        # 오른쪽 차선이 감지되지 않을 때
+
+        if not last_right_lane_detected:
+
+            # 이전에도 오른쪽 차선이 없었다면 시간 체크
+
+            if right_lane_missing_time == 0:
+
+                right_lane_missing_time = current_time
+
+            elif current_time - right_lane_missing_time >= LANE_MISSING_THRESHOLD:
+
+                # 2초 이상 오른쪽 차선이 없으면 왼쪽으로 차선 변경
+
+                lateral_err = (0.5 - (left_x / 150.0)) * lane_width
+
+                heading_err = left_slope
+
+                steering_angle = -30.0  # 왼쪽으로 30도 조향
+
+                rospy.loginfo("오른쪽 차선 2초 이상 미감지: 왼쪽으로 차선 변경 시도 (조향각: %.1f도)", steering_angle)
+
+                return steering_angle, v_r
+
+        else:
+
+            # 이전에는 오른쪽 차선이 있었던 경우
+
+            right_lane_missing_time = current_time
+
+            last_right_lane_detected = False
+
+           
+
+        lateral_err = (0.5 - (left_x / 150.0)) * lane_width
+
+        heading_err = left_slope
+
+    else:
+
+        # 양쪽 차선 모두 감지된 경우
+
+        last_right_lane_detected = True
+
+        right_lane_missing_time = 0
+
+       
+
+        # 0으로 나누는 상황 방지
+
+        if abs(left_x + right_x) < 0.1:  # 매우 작은 값으로 설정
+
+            rospy.logwarn("차선 위치가 중앙에 너무 가까움, 이전 조향각 유지")
+
+            return 0.0, v_r  # 현재 속도 유지하면서 조향각 0 반환
+
+        lateral_err = -(left_x / (left_x + right_x) - 0.5) * lane_width
+
+        heading_err = 0.5 * (left_slope + right_slope)
+
+    heading_err *= -1
+
+
+
+    # 각속도 w 계산
+
+    v = v_r * math.cos(heading_err)
+
+    w = v_r * (K_y * lateral_err + K_phi * math.sin(heading_err))
+
+
+
+    # 조향각 delta 계산 (라디안)
+
+    delta = math.atan2(w * L, v)
+
+
+
+    # 필요시 각도를 degree 단위로 변환 가능 (현재는 radian 그대로 사용)
+
+    steering_angle = math.degrees(delta)
+
+
+
+    return steering_angle, v
+
+
+
+
+
+def calculate_steering_angle():
+
+    if lane_data is None:
+
+        return 0.0
+
+   
+
+    # 왼쪽과 오른쪽 차선의 기울기를 이용하여 조향각 계산
+
+    left_slope = lane_data.left_slope
+
+    right_slope = lane_data.right_slope
+
+   
+
+    # 두 차선의 기울기 평균을 사용
+
+    avg_slope = (left_slope + right_slope) / 2.0
+
+   
+
+    # 기울기를 조향각으로 변환 (라디안 -> 각도)
+
+    steering_angle = -1*math.degrees(avg_slope)
+
+   
+
+    # 조향각 계산
+
+    #dx = lane_data.left_x
+
+    #dy = -lane_data.right_x
+
+    #normalized_para_angle = -((steering_angle>0)-(steering_angle<0))*(steering_angle/50)**2
+
+    #steering_angle = steering_angle + math.atan(x)
+
+    #normalrized_lateral_offset = ((dx>dy)*dx + (dy>dy)*dy)/320
+
+    #steering_angle = k_p*steering_angle - k_lateral*((dx>dy+100)*(normalrized_lateral_offset) + (dy>dx+100)*(normalrized_lateral_offset))
+
+    #steering_angle = k_p*steering_angle
+
+    steering_angle = k_p*steering_angle
+
+    # 조향각 제한 (-50 ~ 50도)
+
+    steering_angle = max(min(steering_angle, 50.0), -50.0)
+
+    rospy.loginfo("angle: %.2f", steering_angle)
+
+    return steering_angle
+
+
+
+#=============================================
+
+# 폴리노미얼 경로 생성 함수
+
+#=============================================
+
+def generate_quadratic_path(dx, dy, theta=0, steps=50):
+
+    """
+
+    2차 곡선 경로 생성
+
+    dx, dy: 목표점 상대 좌표
+
+    theta: 시작 방향 (라디안)
+
+    steps: 경로 포인트 수
+
+    """
+
+    # y = ax^2 + bx + c
+
+    # 조건: (0, 0), (dx, dy), y'(0) = tan(theta)
+
+    A = np.array([
+
+        [0**2, 0, 1],  # y(0) = 0
+
+        [dx**2, dx, 1],  # y(dx) = dy
+
+        [2*0, 1, 0]  # y'(0) = tan(theta)
+
+    ])
+
+    B = np.array([0, dy, math.tan(theta)])
+
+   
+
+    try:
+
+        a, b, c = np.linalg.solve(A, B)
+
+    except np.linalg.LinAlgError:
+
+        # 해를 찾을 수 없는 경우 직선 경로 생성
+
+        return [(x, y) for x, y in zip(np.linspace(0, dx, steps),
+
+                                     np.linspace(0, dy, steps))]
+
+   
+
+    xs = np.linspace(0, dx, steps)
+
+    ys = a * xs**2 + b * xs + c
+
+    return list(zip(xs, ys))
+
+
+
+def local_to_global(x0, y0, theta, dx, dy):
+
+    """로컬 좌표를 전역 좌표로 변환"""
+
+    gx = x0 + dx * math.cos(theta) - dy * math.sin(theta)
+
+    gy = y0 + dx * math.sin(theta) + dy * math.cos(theta)
+
+    return gx, gy
+
+
+
+def transform_path(path, x0, y0, theta):
+
+    """경로를 전역 좌표계로 변환"""
+
+    return [local_to_global(x0, y0, theta, dx, dy) for dx, dy in path]
+
+
+
+def convert_local_path_to_image_coords(path, base_x=BASE_X, base_y=BASE_Y):
+
+    """경로의 시작점을 항상 이미지 중앙에 오도록 좌표 전체 이동"""
+
+    if not path:
+
+        return []
+
+
+
+    dx0, dy0 = path[0]  # 시작점 기준
+
+    image_coords = []
+
+
+
+    for dx, dy in path:
+
+        # 경로를 전체적으로 시작점 기준으로 평행이동
+
+        rel_dx = dx - dx0
+
+        rel_dy = dy - dy0
+
+        x = int(base_x + rel_dx)
+
+        y = int(base_y - rel_dy)
+
+
+
+        # 이미지 범위 클리핑
+
+        x = max(0, min(x, IMAGE_WIDTH - 1))
+
+        y = max(0, min(y, IMAGE_HEIGHT - 1))
+
+        image_coords.append((x, y))
+
+
+
+    return image_coords
+
+
+
+def visualize_path(image, path):
+
+    """경로를 이미지에 시각화"""
+
+    if not path:
+
+        return image
+
+
+
+    # 시작점 기준 상대 좌표로 평행 이동
+
+    dx0, dy0 = path[0]
+
+    adjusted_path = [(dx - dx0, dy - dy0) for dx, dy in path]
+
+
+
+    # 이미지 좌표계로 변환 (기준점은 항상 이미지 하단 중앙)
+
+    image_coords = []
+
+    for dx, dy in adjusted_path:
+
+        x = int(BASE_X + dx)
+
+        y = int(BASE_Y - dy)
+
+        x = max(0, min(x, IMAGE_WIDTH - 1))
+
+        y = max(0, min(y, IMAGE_HEIGHT - 1))
+
+        image_coords.append((x, y))
+
+
+
+    # 경로 포인트를 numpy 배열로 변환
+
+    points = np.array(image_coords, dtype=np.int32).reshape((-1, 1, 2))
+
+
+
+    # 경로 그리기
+
+    cv2.polylines(image, [points], False, (0, 255, 0), 2)
+
+
+
+    # 시작점과 끝점 표시
+
+    if image_coords:
+
+        cv2.circle(image, image_coords[0], 5, (0, 0, 255), -1)  # 시작점
+
+        cv2.circle(image, image_coords[-1], 5, (255, 0, 0), -1)  # 끝점
+
+        rospy.loginfo(f"경로 시작점 (이미지 좌표): {image_coords[0]}, 끝점: {image_coords[-1]}")
+
+        rospy.loginfo(f"원본 경로 시작점: {path[0]}, 끝점: {path[-1]}")
+
+
+
+    return image
+
+
+
+def generate_lane_change_path(current_lane, target_lane, start_x, left_x, right_x):
+
+    """차선 변경 경로 생성"""
+
+    if current_lane == 0 or target_lane == 0:
+
+        return [], 0
+
+   
+
+    # 차선 중심점 계산
+
+    if left_x != 130 and right_x != -130:
+
+        center_x = (left_x + right_x) / 2
+
+    elif left_x != 130:
+
+        center_x = left_x + 75  # 차선 폭 가정
+
+    elif right_x != -130:
+
+        center_x = right_x - 75  # 차선 폭 가정
+
+    else:
+
+        return [], 0
+
+   
+
+    # 차선 변경 방향 결정
+
+    if current_lane == 1 and target_lane == 2:  # 1차선 → 2차선
+
+        dx = 90  #150# 오른쪽으로 이동
+
+        dy = LANE_CHANGE_DISTANCE  # 전방 거리
+
+        direction = 1  # 우회전
+
+    elif current_lane == 2 and target_lane == 1:  # 2차선 → 1차선
+
+        dx = -90  #-150# 왼쪽으로 이동
+
+        dy = LANE_CHANGE_DISTANCE  # 전방 거리
+
+        direction = -1  # 좌회전
+
+    else:
+
+        return [], 0
+
+   
+
+    # 경로 생성
+
+    path = generate_quadratic_path(dx, dy, theta=0, steps=PATH_POINTS)
+
+   
+
+    # 경로를 실제 시작점 기준으로 변환
+
+    adjusted_path = [(start_x + dx, BASE_Y - dy) for dx, dy in path]
+
+   
+
+    # 디버깅을 위한 경로 정보 출력
+
+    if adjusted_path:
+
+        rospy.loginfo(f"생성된 경로: 시작점 {adjusted_path[0]}, 끝점 {adjusted_path[-1]}")
+
+        rospy.loginfo(f"차선 변경 방향: {'우회전' if direction > 0 else '좌회전'}, 이동 거리: {abs(dx)}")
+
+        rospy.loginfo(f"시작 x좌표: {start_x}, 차선 중심: {center_x}")
+
+   
+
+    return adjusted_path, direction
+
+
+
+def lane_change_control(path, current_x, current_y, current_angle, direction):
+
+    global L
+
+    """차선 변경 제어"""
+
+    if not path:
+
+        return 0.0
+
+   
+
+    # 현재 위치에서 가장 가까운 경로 포인트 찾기
+
+    min_dist = float('inf')
+
+    closest_idx = 0
+
+   
+
+    for i, (x, y) in enumerate(path):
+
+        dist = math.sqrt((x - current_x)**2 + (y - current_y)**2)
+
+        if dist < min_dist:
+
+            min_dist = dist
+
+            closest_idx = i
+
+   
+
+    # 전방 주시 포인트 찾기
+
+    look_ahead_idx = min(closest_idx + 20, len(path) - 1)
+
+    target_x, target_y = path[look_ahead_idx]
+
+   
+
+    # 조향각 계산
+
+    alpha = math.atan2(target_y - current_y, target_x - current_x) - current_angle
+
+    base = math.degrees(math.atan2(6 * math.sin(alpha), 15))
+
+    steering_angle = direction * abs(base)
+
+   
+
+    # 조향각 제한 (-50 ~ 50도)
+
+    steering_angle = max(min(steering_angle, 50.0), -50.0)
+
+   
+
+    return steering_angle
+
+
+
+# #=============================================
+
+# # 1) 콘 구역 판단 함수 (min_points=2)
+
+# #=============================================
+
+# def find_cone_section(ranges,
+
+#                       y_threshold=7.0,
+
+#                       min_points=2,
+
+#                       fov_deg=45):
+
+#     count = 0
+
+#     for i, r in enumerate(ranges):
+
+#         if r <= 0.0 or np.isinf(r):
+
+#             continue
+
+#         angle = math.radians(i if i <= 180 else i - 360)
+
+#         y = r * math.cos(angle)
+
+#         if 0 < y < y_threshold and abs(math.degrees(angle)) <= fov_deg:
+
+#             count += 1
+
+#             if count >= min_points:
+
+#                 return True
+
+#     return False
+
+
+
+# #=============================================
+
+# # 2) 콘 구역 내 최대 gap 찾기
+
+# #=============================================
+
+# def find_cone_gap(ranges,
+
+#                   y_threshold=7.0,
+
+#                   x_clip=100.0):
+
+#     xs = []
+
+#     for i, r in enumerate(ranges):
+
+#         if r <= 0.0 or np.isinf(r):
+
+#             continue
+
+#         angle = math.radians(i if i <= 180 else i - 360)
+
+#         y = r * math.cos(angle)
+
+#         if 0 < y < y_threshold:
+
+#             x = r * math.sin(angle)
+
+#             if abs(x) <= x_clip:
+
+#                 xs.append(x)
+
+#     if len(xs) < 2:
+
+#         return 0.0
+
+#     xs.sort()
+
+#     max_gap, best_idx = 0.0, 0
+
+#     for j in range(len(xs)-1):
+
+#         gap = xs[j+1] - xs[j]
+
+#         if gap > max_gap:
+
+#             max_gap, best_idx = gap, j
+
+#     x_mid = (xs[best_idx] + xs[best_idx+1]) / 2.0
+
+#     return math.degrees(math.atan2(x_mid, y_threshold/2.0))
+
+
+
+
+
+#=============================================
+
+# 실질적인 메인 함수
+
+#=============================================
+
+def start():
+
+    global motor, image, ranges, light_go
+
+    prev_angle = 0.0
+
+    light_go = False  # 초기화 추가
+
+    print("Start program --------------")
+
+
+
+    #=========================================
+
+    # 노드를 생성하고, 구독/발행할 토픽들을 선언합니다.
+
+    #=========================================
+
+    rospy.init_node('Track_Driver')
+
+    rospy.Subscriber("/usb_cam/image_raw/", Image, usbcam_callback, queue_size=1)
+
+    rospy.Subscriber("/scan", LaserScan, lidar_callback, queue_size=1)
+
+    rospy.Subscriber("lane_info", laneinfo, lane_callback, queue_size=1)
+
+    motor = rospy.Publisher('xycar_motor', XycarMotor, queue_size=1)
+
+       
+
+    #=========================================
+
+    # 노드들로부터 첫번째 토픽들이 도착할 때까지 기다립니다.
+
+    #=========================================
+
+    rospy.wait_for_message("/usb_cam/image_raw/", Image)
+
+    print("Camera Ready --------------")
+
+    rospy.wait_for_message("/scan", LaserScan)
+
+    print("Lidar Ready ----------")
+
+   
+
+    #=========================================
+
+    # 라이다 스캔정보에 대한 시각화 준비를 합니다.
+
+    #=========================================
+
+    plt.ion()
+
+    plt.show()
+
+    print("Lidar Visualizer Ready ----------")
+
+   
+
+    print("======================================")
+
+    print(" S T A R T    D R I V I N G ...")
+
+    print("======================================")
+
+   
+
+    #=========================================
+
+    # 메인 루프
+
+    #=========================================
+
+    while not rospy.is_shutdown():
+
+        if image.size != 0:
+
+            # 원본 이미지 복사
+
+            display_img = image.copy()
+
+           
+
+            # 차선 변경 경로 시각화
+
+            if is_lane_changing and lane_change_path:
+
+                display_img = visualize_path(display_img, lane_change_path)
+
+           
+
+            # 이미지 표시
+
+            #cv2.imshow("original", display_img)
+
+            #cv2.imshow("gray", cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
+
+
+
+        if ranges is not None:            
+
+            angles = np.linspace(0,2*np.pi, len(ranges))+np.pi/2
+
+            x = ranges * np.cos(angles)
+
+            y = ranges * np.sin(angles)
+
+
+
+            lidar_points.set_data(x, y)
+
+            fig.canvas.draw_idle()
+
+            plt.pause(0.01)
+
+
+
+            steering_angle, v = kanayama_control()
+
+            tl_state = detect_traffic_light(image)
+
+            # 신호등 상태 기반 출발/정지 플래그 제어
+
+            if tl_state == 'green':
+
+                light_go = True
+
+            elif tl_state in ('red', 'yellow'):
+
+                light_go = False
+
+            # 'none'이면 이전 상태 유지
+
+            #light_go = True
+
+            #rospy.loginfo(f"[TL] state: {tl_state}, go: {light_go}")
+
+            speed = v if light_go else 0.0
+
+            drive(angle=steering_angle, speed=speed)
+
+           
+
+            # 계산된 조향각으로 주행
+
+            time.sleep(0.1)
+
+           
+
+            cv2.waitKey(1)
+
+
+
+#=============================================
+
+# 메인함수를 호출합니다.
+
+# start() 함수가 실질적인 메인함수입니다.
+
+#=============================================
+
+if __name__ == '__main__':
+
+    start()

@@ -43,10 +43,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/taeyeong/xytron_404/xycar_ws/src
+CMAKE_SOURCE_DIR = /home/sihoon/xytron_404/xycar_ws/src
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/taeyeong/xytron_404/xycar_ws/build
+CMAKE_BINARY_DIR = /home/sihoon/xytron_404/xycar_ws/build
 
 # Utility rule file for xycar_msgs_genpy.
 
@@ -63,10 +63,10 @@ kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/build: xycar_msgs_genpy
 .PHONY : kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/build
 
 kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/clean:
-	cd /home/taeyeong/xytron_404/xycar_ws/build/kookmin/xycar_msgs && $(CMAKE_COMMAND) -P CMakeFiles/xycar_msgs_genpy.dir/cmake_clean.cmake
+	cd /home/sihoon/xytron_404/xycar_ws/build/kookmin/xycar_msgs && $(CMAKE_COMMAND) -P CMakeFiles/xycar_msgs_genpy.dir/cmake_clean.cmake
 .PHONY : kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/clean
 
 kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/depend:
-	cd /home/taeyeong/xytron_404/xycar_ws/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/taeyeong/xytron_404/xycar_ws/src /home/taeyeong/xytron_404/xycar_ws/src/kookmin/xycar_msgs /home/taeyeong/xytron_404/xycar_ws/build /home/taeyeong/xytron_404/xycar_ws/build/kookmin/xycar_msgs /home/taeyeong/xytron_404/xycar_ws/build/kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/sihoon/xytron_404/xycar_ws/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/sihoon/xytron_404/xycar_ws/src /home/sihoon/xytron_404/xycar_ws/src/kookmin/xycar_msgs /home/sihoon/xytron_404/xycar_ws/build /home/sihoon/xytron_404/xycar_ws/build/kookmin/xycar_msgs /home/sihoon/xytron_404/xycar_ws/build/kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : kookmin/xycar_msgs/CMakeFiles/xycar_msgs_genpy.dir/depend
 

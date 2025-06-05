@@ -1,598 +1,529 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*- 2
-#=============================================
+# -*- coding: utf-8 -*-
+# =============================================
 # 본 프로그램은 2025 제8회 국민대 자율주행 경진대회에서
 # 예선과제를 수행하기 위한 파일입니다. 
 # 예선과제 수행 용도로만 사용가능하며 외부유출은 금지됩니다.
-#=============================================
-# 함께 사용되는 각종 파이썬 패키지들의 import 선언부
-#=============================================
+# =============================================
 import numpy as np
-import cv2, rospy, time, os, math
-from sensor_msgs.msg import Image
-from xycar_msgs.msg import XycarMotor
-from xycar_msgs.msg import laneinfo
+import cv2, rospy, time, math
+from sensor_msgs.msg import Image, LaserScan
+from xycar_msgs.msg import XycarMotor, laneinfo, ConeLanes # ConeLanes 추가
 from cv_bridge import CvBridge
-from sensor_msgs.msg import LaserScan
-from xycar_msgs.msg import ConeLanes
-import matplotlib.pyplot as plt
 
-#=============================================
+# =============================================
 # 프로그램에서 사용할 변수, 저장공간 선언부
-#=============================================
-image = np.empty(shape=[0])  # 카메라 이미지를 담을 변수
-ranges = None  # 라이다 데이터를 담을 변수
-motor = None  # 모터노드
-motor_msg = XycarMotor()  # 모터 토픽 메시지
-Fix_Speed = 37 #원래 10  # 모터 속도 고정 상수값 
-new_angle = 0  # 모터 조향각 초기값
-new_speed = Fix_Speed  # 모터 속도 초기값
-bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
-lane_data = None  # 차선 정보를 담을 변수
-k_p = Fix_Speed/25
-k_para = 20
-k_lateral = 5
-light_go = False  # ← 초록불 인식 후 출발 유지
-L = 0.5
+# =============================================
+image_raw = np.empty(shape=[0])  # 카메라 이미지를 담을 변수
+lidar_ranges = None  # 라이다 데이터를 담을 변수 (차량 감지용)
+motor_control = None  # 모터노드
+motor_msg_obj = XycarMotor()  # 모터 토픽 메시지
 
-#차량 감지 관련
-vehicle_ahead = False
+# --- 주행 파라미터 ---
+FIX_SPEED_NORMAL = 37       # 일반 차선 주행 속도
+CONE_DRIVE_MAX_SPEED = 9 
+WHEELBASE = 0.5             # 차량 축거 (m), Pure Pursuit용
+EXPECTED_LANE_WIDTH_APPROX_METERS = 3.5
+
+# --- 제어 관련 변수 ---
+current_steering_angle = 0  # 현재 조향각 (디버깅용)
+current_target_speed = FIX_SPEED_NORMAL  # 현재 목표 속도
+
+bridge = CvBridge()
+lane_info_data = None       # 카메라 기반 차선 정보를 담을 변수
+cone_lanes_data = None    # 라이다 기반 라바콘 차선 정보를 담을 변수
+
+# --- 신호등 관련 ---
+traffic_light_go = False  # 초록불 인식 후 출발 유지 플래그
+
+# --- 차량 감지 관련 ---
+vehicle_ahead_flag = False
 detection_success_streak = 0
-DETECTION_DISTANCE_LOW = 5.0
-DETECTION_DISTANCE_HIGH = 40.0
-DETECTION_COUNT    = 4      # 연속으로 이만큼 포인트가 잡히면 차량으로 판정
-SECTOR_WIDTH       = 7      # 앞 0번 인덱스 기준으로 ±2 인덱스 조사
-DETECTION_STREAK_THRESHOLD = 2     # 스캔이 연속으로 성공해야 할 횟수
+DETECTION_DISTANCE_LOW = 5.0 
+DETECTION_DISTANCE_HIGH = 40.0 
+DETECTION_COUNT = 4 
+SECTOR_WIDTH = 7 
+DETECTION_STREAK_THRESHOLD = 2
 
-# 차선 번호 관련 변수
-current_lane = 0  # 현재 차선 번호 (0: 불확실, 1: 1차선, 2: 2차선)
-is_lane_changing = False  # 차선 변경 중인지 여부
-lane_change_path = []  # 차선 변경 경로
-lane_change_direction = 0  # 차선 변경 방향 (1: 우회전, -1: 좌회전)
-lane_change_start_time = 0  # 차선 변경 시작 시간
-last_lane_change_time = 0  # 마지막 차선 변경 시간
-#LANE_CHANGE_INTERVAL = 6.0  #폐기 # 차선 변경 간격 (초)
-LANE_CHANGE_DURATION = 1.65  #3.0  차선 변경 소요 시간 (초)
-PATH_POINTS = 20  #30 # 경로 생성 시 샘플링할 포인트 수
-LANE_CHANGE_DISTANCE = 230 #200  # 차선 변경 시 전방 주시 거리
+# --- 차선 변경 관련 ---
+current_driving_lane = 0  
+is_lane_changing_now = False  
+lane_change_generated_path = []  
+lane_change_direction_val = 0  
+lane_change_start_timestamp = 0  
+LANE_CHANGE_DURATION_SEC = 1.65 
+PATH_POINTS_COUNT = 20 
+LANE_CHANGE_LOOKAHEAD_DIST = 230 
 
-# 이미지 관련 상수
-IMAGE_WIDTH = 260  # 이미지 너비
-IMAGE_HEIGHT = 260  # 이미지 높이
-BASE_X = 130  # 이미지 중앙 x좌표
-BASE_Y = 260  # 이미지 하단 y좌표
+# 이미지 관련 상수 (BEV 기준)
+BEV_IMAGE_WIDTH = 260
+BEV_IMAGE_HEIGHT = 260
+BEV_BASE_X_CENTER = BEV_IMAGE_WIDTH / 2.0 
+BEV_BASE_Y_BOTTOM = BEV_IMAGE_HEIGHT      
 
-#=============================================
-# 라이다 스캔정보로 그림을 그리기 위한 변수
-#=============================================
-fig, ax = plt.subplots(figsize=(8, 8))
-ax.set_xlim(-120, 120)
-ax.set_ylim(-120, 120)
-ax.set_aspect('equal')
-lidar_points, = ax.plot([], [], 'bo')
+# --- 라바콘 주행 관련 변수 ---
+cone_mode_activated_time = None 
+last_cone_seen_time = None       # [추가] 마지막으로 콘 체인을 정상 인식한 시점 기록
+ONE_LANE_DRIVING_TIMEOUT_SEC = 30.0 
+MIN_CONES_FOR_LANE_SEGMENT = 2 
+TARGET_Y_FOR_CONE_PURSUIT = 2.85 # 라바콘 Pure Pursuit 목표 y 값 (미터 단위)
 
-#=============================================
-# 콜백함수 - 카메라 토픽을 처리하는 콜백함수
-#=============================================
+# [추가] 최초 2초 동안 적용할 배율 및 유지 시간
+CONE_PURSUIT_MULTIPLIER = 2          # 콘 모드 진입 직후 곱할 배율 (원하는 값으로 조정 가능)
+CONE_PURSUIT_MULTIPLIER_DURATION_SEC = 5.0  # 배율을 유지할 기간 (초 단위)
+
+# --- [새로 추가] 라바콘 제어 실패 시 이전 값 유지 관련 ---
+last_successful_cone_steering = 0.0
+last_successful_cone_speed = CONE_DRIVE_MAX_SPEED # 초기값은 기본 콘 주행 속도
+cone_control_failure_count = 0
+MAX_CONSECUTIVE_CONE_FAILURES = 8 # 연속 실패 허용 횟수 (이후 차선주행 전환 또는 정지 고려)
+
+# --- [추가] Pure Pursuit 가속 제한 상수 ---
+MAX_CONE_ACCELERATION = 0.5 # 한 루프(1/20초)당 최대 증가 속도 (m/s)
+
+# =============================================
+# 콜백함수
+# =============================================
 def usbcam_callback(data):
-    global image
-    image = bridge.imgmsg_to_cv2(data, "bgr8")
-   
-#=============================================
-# 콜백함수 - 라이다 토픽을 받아서 처리하는 콜백함수
-#=============================================
-def lidar_callback(data):
-    global ranges, vehicle_ahead, detection_success_streak
-    ranges = data.ranges[0:360]
+    global image_raw
+    image_raw = bridge.imgmsg_to_cv2(data, "bgr8")
 
-    # 1) 이번 스캔에서 공간적으로 연속된 DETECTION_COUNT 점이 감지됐는지 판정
+def lidar_scan_callback(data):
+    global lidar_ranges, vehicle_ahead_flag, detection_success_streak
+    lidar_ranges = data.ranges[0:360] 
+
     detected_this_scan = False
-    consec = 0
-    for offset in range(-SECTOR_WIDTH, SECTOR_WIDTH+1):
-        d = ranges[offset % 360]
-        if DETECTION_DISTANCE_LOW < d < DETECTION_DISTANCE_HIGH:
-            consec += 1
-            if consec >= DETECTION_COUNT:
+    consecutive_points = 0
+    for i in range(-SECTOR_WIDTH, SECTOR_WIDTH + 1):
+        dist = lidar_ranges[i % 360] 
+        if DETECTION_DISTANCE_LOW < dist < DETECTION_DISTANCE_HIGH:
+            consecutive_points += 1
+            if consecutive_points >= DETECTION_COUNT:
                 detected_this_scan = True
                 break
         else:
-            consec = 0
+            consecutive_points = 0
 
-    # 2) 연속 성공 카운터 갱신
     if detected_this_scan:
-        detection_success_streak += 1
+        detection_success_streak = max(DETECTION_STREAK_THRESHOLD, detection_success_streak + 1)
     else:
-        detection_success_streak = 0
+        detection_success_streak = max(0, detection_success_streak -1)
 
-    # 3) 3번 연속 스캔 성공 시에만 플래그 ON
     if detection_success_streak >= DETECTION_STREAK_THRESHOLD:
-        vehicle_ahead = True
+        vehicle_ahead_flag = True
     else:
-        vehicle_ahead = False
+        vehicle_ahead_flag = False
 
-def lane_callback(data):
-    global lane_data, current_lane, is_lane_changing, lane_change_path
-    global lane_change_direction, lane_change_start_time, last_lane_change_time
-    lane_data = data
+
+def lane_info_callback(data): 
+    global lane_info_data, current_driving_lane, is_lane_changing_now
+    global lane_change_generated_path, lane_change_direction_val, lane_change_start_timestamp
     
-    # 현재 시간 확인
-    current_time = time.time()
+    lane_info_data = data
+    current_time_sec = time.time()
 
-    # 실측 lane 번호 업데이트
     if data.lane_number in [1, 2]:
-        current_lane = data.lane_number
+        current_driving_lane = data.lane_number
 
-    # 차선 변경 조건
-    if not is_lane_changing and vehicle_ahead:
-        is_lane_changing = True
-        lane_change_start_time = current_time
-        last_lane_change_time = current_time
+    if not is_driving_in_cone_mode_now() and not is_lane_changing_now and vehicle_ahead_flag:
+        is_lane_changing_now = True
+        lane_change_start_timestamp = current_time_sec
+        target_lane = 2 if current_driving_lane == 1 else 1
+        
+        start_x_bev = BEV_BASE_X_CENTER 
+        if lane_info_data.left_x != (BEV_BASE_X_CENTER) and lane_info_data.right_x != (-BEV_BASE_X_CENTER):
+            start_x_bev = BEV_BASE_X_CENTER + (lane_info_data.right_x - lane_info_data.left_x) / 2.0
+        elif lane_info_data.left_x != (BEV_BASE_X_CENTER) : 
+            start_x_bev = (BEV_BASE_X_CENTER - lane_info_data.left_x) + 75 
+        elif lane_info_data.right_x != (-BEV_BASE_X_CENTER) : 
+            start_x_bev = (BEV_BASE_X_CENTER + lane_info_data.right_x) - 75
+        else: 
+            start_x_bev = BEV_BASE_X_CENTER
 
-        target_lane = 2 if current_lane == 1 else 1
-
-        # 현재 차선 중심점 계산
-        if data.left_x != 130 and data.right_x != -130:
-            start_x = (data.left_x + data.right_x) / 2
-        elif data.left_x != 130:
-            start_x = data.left_x + 75
-        elif data.right_x != -130:
-            start_x = data.right_x - 75
-        else:
-            start_x = BASE_X  # 기본값으로 이미지 중앙 사용
-
-        lane_change_path, lane_change_direction = generate_lane_change_path(
-            current_lane, target_lane,
-            start_x, data.left_x, data.right_x
+        lane_change_generated_path, lane_change_direction_val = generate_lane_change_path_bev(
+            current_driving_lane, target_lane, start_x_bev, 
+            BEV_BASE_X_CENTER - lane_info_data.left_x, 
+            BEV_BASE_X_CENTER + lane_info_data.right_x  
         )
+        rospy.loginfo(f"Lane change initiated: {current_driving_lane} -> {target_lane}")
 
-        rospy.loginfo(f"차선 변경 시작: {current_lane} → {target_lane}")
+def cone_lanes_info_callback(data): 
+    global cone_lanes_data
+    cone_lanes_data = data
 
-#=============================================
-# 신호등 검출 함수
-#=============================================
-def detect_traffic_light(img):
-    h, w = img.shape[:2]
-    roi = img[0:int(h*0.2), int(w*0.35):int(w*0.65)]
+# =============================================
+# 유틸리티 및 제어 함수
+# =============================================
+def detect_traffic_light(img_bgr): 
+    if img_bgr is None or img_bgr.size == 0: return 'none'
+    h, w = img_bgr.shape[:2]
+    roi = img_bgr[0:int(h*0.25), int(w*0.30):int(w*0.70)]
+    if roi.size == 0: return 'none'
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-
-    lower_r1 = np.array([0, 120, 70]);   upper_r1 = np.array([10, 255, 255])
+    lower_r1 = np.array([0, 120, 70]); upper_r1 = np.array([10, 255, 255])
     lower_r2 = np.array([170, 120, 70]); upper_r2 = np.array([180, 255, 255])
-    mask_r = cv2.bitwise_or(cv2.inRange(hsv, lower_r1, upper_r1),
-                            cv2.inRange(hsv, lower_r2, upper_r2))
-
+    mask_r = cv2.bitwise_or(cv2.inRange(hsv, lower_r1, upper_r1), cv2.inRange(hsv, lower_r2, upper_r2))
     lower_y = np.array([15, 100, 100]); upper_y = np.array([35, 255, 255])
     mask_y = cv2.inRange(hsv, lower_y, upper_y)
-
-    lower_g = np.array([40, 50, 50]); upper_g = np.array([90, 255, 255])
+    lower_g = np.array([40, 50, 50]); upper_g = np.array([90, 255, 255]) 
     mask_g = cv2.inRange(hsv, lower_g, upper_g)
+    min_pixel_threshold = int(roi.shape[0] * roi.shape[1] * 0.005) 
+    r_cnt = cv2.countNonZero(mask_r); y_cnt = cv2.countNonZero(mask_y); g_cnt = cv2.countNonZero(mask_g)
+    if r_cnt > min_pixel_threshold: return 'red'
+    elif y_cnt > min_pixel_threshold: return 'yellow'
+    elif g_cnt > min_pixel_threshold: return 'green'
+    else: return 'none'
 
-    r_cnt = cv2.countNonZero(mask_r)
-    y_cnt = cv2.countNonZero(mask_y)
-    g_cnt = cv2.countNonZero(mask_g)
-    total = roi.shape[0] * roi.shape[1]
+def send_motor_command(angle_deg, speed_val):
+    motor_msg_obj.angle = float(angle_deg)
+    motor_msg_obj.speed = float(speed_val)
+    if motor_control:
+        motor_control.publish(motor_msg_obj)
 
-    if r_cnt > 0.01 * total:
-        return 'red'
-    elif y_cnt > 0.01 * total:
-        return 'yellow'
-    elif g_cnt > 0.01 * total:
-        return 'green'
-    else:
-        return 'none'
+def generate_quadratic_path_bev(dx_bev, dy_bev, theta_rad=0, steps=PATH_POINTS_COUNT):
+    A = np.array([[0**2, 0, 1], [dx_bev**2, dx_bev, 1], [2*0, 1, 0]])
+    B = np.array([0, dy_bev, math.tan(theta_rad)])
+    try: a, b, c = np.linalg.solve(A, B)
+    except np.linalg.LinAlgError: 
+        rospy.logwarn("Quadratic path solve failed, generating linear path.")
+        xs_bev = np.linspace(0, dx_bev, steps); ys_bev = np.linspace(0, dy_bev, steps)
+        return list(zip(xs_bev, ys_bev))
+    xs_bev = np.linspace(0, dx_bev, steps)
+    ys_bev = a * xs_bev**2 + b * xs_bev + c
+    return list(zip(xs_bev, ys_bev))
 
-#=============================================
-# 모터로 토픽을 발행하는 함수 
-#=============================================
-def drive(angle, speed):
-    motor_msg.angle = float(angle)
-    motor_msg.speed = float(speed)
-    motor.publish(motor_msg)
+def generate_lane_change_path_bev(current_lane_num, target_lane_num, current_x_bev, left_lane_x_bev, right_lane_x_bev):
+    if current_lane_num == 0 or target_lane_num == 0: return [], 0
+    lane_width_pixels_bev = 150; dx_bev = 0; direction = 0
+    if current_lane_num == 1 and target_lane_num == 2: dx_bev = lane_width_pixels_bev * 0.6; direction = 1 
+    elif current_lane_num == 2 and target_lane_num == 1: dx_bev = -lane_width_pixels_bev * 0.6; direction = -1 
+    else: return [], 0
+    dy_bev = LANE_CHANGE_LOOKAHEAD_DIST 
+    relative_path_bev = generate_quadratic_path_bev(dx_bev, dy_bev, theta_rad=0, steps=PATH_POINTS_COUNT)
+    absolute_path_bev = [(current_x_bev + rel_x, BEV_BASE_Y_BOTTOM - rel_y) for rel_x, rel_y in relative_path_bev]
+    if absolute_path_bev: rospy.loginfo(f"Lane change path (BEV): Start {absolute_path_bev[0]}, End {absolute_path_bev[-1]}, Dir: {direction}")
+    return absolute_path_bev, direction
 
-#=============================================
-# 차선 정보를 기반으로 조향각을 계산하는 함수
-#=============================================
-def kanayama_control():
-    global lane_data, current_lane, is_lane_changing
-    global lane_change_path, lane_change_direction, lane_change_start_time
-    global L
-    if lane_data is None:
-        return 0.0, Fix_Speed
+def lane_change_control_bev(path_bev, current_x_bev, current_y_bev, current_angle_rad, direction_val):
+    if not path_bev: return 0.0
+    min_dist_sq = float('inf'); closest_idx = 0
+    for i, (px_bev, py_bev) in enumerate(path_bev):
+        dist_sq = (px_bev - current_x_bev)**2 + (py_bev - current_y_bev)**2
+        if dist_sq < min_dist_sq: min_dist_sq = dist_sq; closest_idx = i
+    look_ahead_idx = min(closest_idx + int(PATH_POINTS_COUNT * 0.3), len(path_bev) - 1) 
+    target_x_bev, target_y_bev = path_bev[look_ahead_idx]
+    alpha_bev = math.atan2( (current_y_bev - target_y_bev), (target_x_bev - current_x_bev) ) - current_angle_rad
+    steering_deg = math.degrees(alpha_bev) * 0.5 * direction_val
+    steering_deg = max(min(steering_deg, 30.0), -30.0) 
+    return steering_deg
 
-    # 차선 변경 중인 경우
-    if is_lane_changing and lane_change_path:
-        current_time = time.time()
-        
-        # 차선 변경 완료 조건 확인
-        if current_time - lane_change_start_time > LANE_CHANGE_DURATION:
-            is_lane_changing = False
-            lane_change_path = []
-            lane_change_direction = 0
-            rospy.loginfo("차선 변경 완료")
+def kanayama_lane_control():
+    global lane_info_data, FIX_SPEED_NORMAL, is_lane_changing_now, lane_change_generated_path, lane_change_direction_val
+    if lane_info_data is None:
+        rospy.logwarn_throttle(1.0, "Kanayama: No lane_info_data received.")
+        return 0.0, FIX_SPEED_NORMAL
+
+    if is_lane_changing_now and lane_change_generated_path:
+        current_time_sec = time.time()
+        if current_time_sec - lane_change_start_timestamp > LANE_CHANGE_DURATION_SEC:
+            is_lane_changing_now = False; lane_change_generated_path = []; lane_change_direction_val = 0
+            rospy.loginfo("Lane change completed.")
         else:
-            # 현재 차선 중심점 계산
-            if lane_data.left_x != 130 and lane_data.right_x != -130:
-                current_x = (lane_data.left_x + lane_data.right_x) / 2
-            elif lane_data.left_x != 130:
-                current_x = lane_data.left_x + 75
-            elif lane_data.right_x != -130:
-                current_x = lane_data.right_x - 75
+            steering_angle_deg = lane_change_control_bev(lane_change_generated_path, BEV_BASE_X_CENTER, BEV_BASE_Y_BOTTOM, 0, lane_change_direction_val)
+            control_speed = min(FIX_SPEED_NORMAL * 1.1, 45) 
+            return steering_angle_deg, control_speed
+
+    K_y = 0.85; K_phi = 3.0; v_ref = FIX_SPEED_NORMAL; pixel_to_meter_ratio_x = 0.02 
+    center_offset_pixels = (lane_info_data.right_x - lane_info_data.left_x) / 2.0
+    lateral_error = -center_offset_pixels * pixel_to_meter_ratio_x 
+    heading_error_rad = -0.5 * (lane_info_data.left_slope + lane_info_data.right_slope) 
+    omega = v_ref * (K_y * lateral_error + K_phi * math.sin(heading_error_rad)) 
+    delta_rad = math.atan2(omega * WHEELBASE, v_ref) if abs(v_ref) > 0.1 else 0.0
+    steering_angle_deg = max(min(math.degrees(delta_rad), 50.0), -50.0) 
+    return steering_angle_deg, v_ref
+
+# --- [수정됨] Pure Pursuit 제어 (라바콘 주행 모드) - 강건성 향상 ---
+def pure_pursuit_cone_control():
+    global cone_lanes_data, WHEELBASE, CONE_DRIVE_MAX_SPEED, TARGET_Y_FOR_CONE_PURSUIT
+    global cone_mode_activated_time, CONE_PURSUIT_MULTIPLIER, CONE_PURSUIT_MULTIPLIER_DURATION_SEC
+
+    if cone_lanes_data is None:
+        rospy.logwarn_throttle(1.0, "PurePursuit: No cone_lanes_data received.")
+        return None, None
+
+    center_path_np = np.array([[p.x, p.y] for p in cone_lanes_data.center_path]) if cone_lanes_data.center_path else np.array([])
+
+    if center_path_np.shape[0] < 1: # 경로 점이 하나도 없으면 제어 불가
+        rospy.logwarn_throttle(1.0, "PurePursuit: Center_path is empty.")
+        return None, None
+    
+    # (1) 현재 콘 모드 활성화 이후 경과 시간 계산
+    effective_target_y = TARGET_Y_FOR_CONE_PURSUIT
+    if cone_mode_activated_time is not None:
+        elapsed = time.time() - cone_mode_activated_time
+        if elapsed < CONE_PURSUIT_MULTIPLIER_DURATION_SEC:
+            # 활성화 후 n초 이내라면 배율 적용
+            effective_target_y = TARGET_Y_FOR_CONE_PURSUIT * CONE_PURSUIT_MULTIPLIER
+            rospy.loginfo_throttle(1.0,
+                f"PurePursuit: Cone mode active {elapsed:.2f}s (<= {CONE_PURSUIT_MULTIPLIER_DURATION_SEC}s), "
+                f"using TARGET_Y = {effective_target_y:.2f}")
+        else:
+            # 2초 경과 후에는 원래 값 사용
+            effective_target_y = TARGET_Y_FOR_CONE_PURSUIT
+
+    target_point = None
+
+    # 2) effective_target_y 와의 교차점 찾기
+    if center_path_np.shape[0] >= 2: # 최소 2개의 점이 있어야 선분으로 교차점 계산 가능
+        for i in range(len(center_path_np) - 1):
+            p1 = center_path_np[i]; p2 = center_path_np[i+1]
+            y1, y2 = p1[1], p2[1]; x1, x2 = p1[0], p2[0]
+
+            if (y1 <= effective_target_y <= y2) or (y2 <= effective_target_y <= y1):
+                if abs(y2 - y1) < 1e-6: 
+                    if abs(y1 - effective_target_y) < 1e-6:
+                        target_x_local = (x1 + x2) / 2.0
+                        target_point = np.array([target_x_local, effective_target_y])
+                        break 
+                else:
+                    target_x_local = x1 + (x2 - x1) * (effective_target_y - y1) / (y2 - y1)
+                    target_point = np.array([target_x_local, effective_target_y])
+                    break 
+    
+    # 3) 교차점 없을 때 방어 로직 (기존 그대로)
+    if target_point is None:
+        rospy.logwarn_throttle(1.0, f"PurePursuit: No direct intersection with y={effective_target_y:.2f}. Attempting fallback.")
+        if center_path_np.size > 0:
+            idx_furthest_y = np.argmax(center_path_np[:, 1])
+            furthest_point_on_path = center_path_np[idx_furthest_y]
+
+            MIN_Y_RATIO_FOR_FALLBACK = 0.5
+            MIN_Y_ABS_FOR_FALLBACK = 1.0 # 최소 1미터는 앞에 있어야 함
+            if furthest_point_on_path[1] > max(effective_target_y * MIN_Y_RATIO_FOR_FALLBACK, MIN_Y_ABS_FOR_FALLBACK) :
+                target_point = furthest_point_on_path
+                rospy.loginfo_throttle(1.0, f"PurePursuit Fallback: Using furthest point on path: ({target_point[0]:.2f}, {target_point[1]:.2f})")
             else:
-                current_x = BASE_X  # 기본값으로 이미지 중앙 사용
+                rospy.logwarn_throttle(1.0, f"PurePursuit Fallback: Furthest point ({furthest_point_on_path[0]:.2f}, {furthest_point_on_path[1]:.2f}) is too close or behind. Control failed.")
+                return None, None
+        else: # center_path_np가 비어있는 경우는 이미 위에서 처리됨
+            return None, None
 
-            # 차선 변경 제어
-            steering_angle = lane_change_control(
-                lane_change_path,
-                current_x, BASE_Y,  # 실제 차량 위치 사용
-                math.radians(-(lane_data.left_slope + lane_data.right_slope)/2),
-                lane_change_direction
-            )
-            increased_speed = Fix_Speed*1.15
-            steering_angle = steering_angle*1.1
-            return steering_angle, increased_speed
+    if target_point is None: # 모든 방어 로직 후에도 목표점을 못 찾으면 실패
+        rospy.logerr_throttle(1.0, "PurePursuit: CRITICAL - Failed to determine target_point even after fallbacks.")
+        return None, None
 
-    # 기존의 kanayama_control 로직
-    left_x = lane_data.left_x
-    right_x = lane_data.right_x
-    left_slope = lane_data.left_slope
-    right_slope = lane_data.right_slope
-    lane_width = 3.5
-    
-    # 파라미터
-    K_y = 0.85
-    K_phi = 3.0
-    v_r = Fix_Speed
-    
-    # lateral_err, heading_err 계산 (주신 코드 참고)
-    if left_x == 130 and right_x == -130:
-        rospy.logwarn("Both lanes lost, skipping control.")
-        return 0.0, Fix_Speed
-    elif left_x == 130:
-        lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
-        heading_err = right_slope
-    elif right_x == -130:
-        lateral_err = (0.5 - (left_x / 150.0)) * lane_width
-        heading_err = left_slope
+    rospy.loginfo_throttle(1.0, f"PurePursuit: Target point: ({target_point[0]:.2f}, {target_point[1]:.2f})")
+    target_x_local, target_y_local = target_point[0], target_point[1]
+
+    if abs(target_y_local) < 0.1: # 목표 y가 너무 작으면 (0.01에서 증가) 직진 또는 이전 값 사용 고려
+        rospy.logwarn_throttle(1.0, "PurePursuit: Target y is too small, potential instability.")
+        # 이 경우, alpha_rad를 0으로 하거나, 이전 제어값을 사용하는 로직을 메인 루프에서 처리
+        # 여기서는 일단 alpha=0으로 계산 진행
+        alpha_rad = 0.0
     else:
-        lateral_err = -(left_x / (left_x + right_x) - 0.5) * lane_width
-        heading_err = 0.5 * (left_slope + right_slope)
-    heading_err *= -1
+        alpha_rad = math.atan2(target_x_local, target_y_local) 
 
-    # 각속도 w 계산
-    v = v_r * math.cos(heading_err)
-    w = v_r * (K_y * lateral_err + K_phi * math.sin(heading_err))
-
-    # 조향각 delta 계산 (라디안)
-    delta = math.atan2(w * L, v)
-
-    # 필요시 각도를 degree 단위로 변환 가능 (현재는 radian 그대로 사용)
-    steering_angle = math.degrees(delta)
-
-    return steering_angle, v
-
-
-def calculate_steering_angle():
-    if lane_data is None:
-        return 0.0
+    lookahead_distance = math.hypot(target_x_local, target_y_local)
     
-    # 왼쪽과 오른쪽 차선의 기울기를 이용하여 조향각 계산
-    left_slope = lane_data.left_slope
-    right_slope = lane_data.right_slope
-    
-    # 두 차선의 기울기 평균을 사용
-    avg_slope = (left_slope + right_slope) / 2.0
-    
-    # 기울기를 조향각으로 변환 (라디안 -> 각도)
-    steering_angle = -1*math.degrees(avg_slope)
-    
-    # 조향각 계산
-    #dx = lane_data.left_x
-    #dy = -lane_data.right_x
-    #normalized_para_angle = -((steering_angle>0)-(steering_angle<0))*(steering_angle/50)**2
-    #steering_angle = steering_angle + math.atan(x)
-    #normalrized_lateral_offset = ((dx>dy)*dx + (dy>dy)*dy)/320
-    #steering_angle = k_p*steering_angle - k_lateral*((dx>dy+100)*(normalrized_lateral_offset) + (dy>dx+100)*(normalrized_lateral_offset))
-    #steering_angle = k_p*steering_angle
-    steering_angle = k_p*steering_angle
-    # 조향각 제한 (-50 ~ 50도)
-    steering_angle = max(min(steering_angle, 50.0), -50.0)
-    rospy.loginfo("angle: %.2f", steering_angle)
-    return steering_angle
-
-#=============================================
-# 폴리노미얼 경로 생성 함수
-#=============================================
-def generate_quadratic_path(dx, dy, theta=0, steps=50):
-    """
-    2차 곡선 경로 생성
-    dx, dy: 목표점 상대 좌표
-    theta: 시작 방향 (라디안)
-    steps: 경로 포인트 수
-    """
-    # y = ax^2 + bx + c
-    # 조건: (0, 0), (dx, dy), y'(0) = tan(theta)
-    A = np.array([
-        [0**2, 0, 1],  # y(0) = 0
-        [dx**2, dx, 1],  # y(dx) = dy
-        [2*0, 1, 0]  # y'(0) = tan(theta)
-    ])
-    B = np.array([0, dy, math.tan(theta)])
-    
-    try:
-        a, b, c = np.linalg.solve(A, B)
-    except np.linalg.LinAlgError:
-        # 해를 찾을 수 없는 경우 직선 경로 생성
-        return [(x, y) for x, y in zip(np.linspace(0, dx, steps),
-                                     np.linspace(0, dy, steps))]
-    
-    xs = np.linspace(0, dx, steps)
-    ys = a * xs**2 + b * xs + c
-    return list(zip(xs, ys))
-
-def local_to_global(x0, y0, theta, dx, dy):
-    """로컬 좌표를 전역 좌표로 변환"""
-    gx = x0 + dx * math.cos(theta) - dy * math.sin(theta)
-    gy = y0 + dx * math.sin(theta) + dy * math.cos(theta)
-    return gx, gy
-
-def transform_path(path, x0, y0, theta):
-    """경로를 전역 좌표계로 변환"""
-    return [local_to_global(x0, y0, theta, dx, dy) for dx, dy in path]
-
-def convert_local_path_to_image_coords(path, base_x=BASE_X, base_y=BASE_Y):
-    """경로의 시작점을 항상 이미지 중앙에 오도록 좌표 전체 이동"""
-    if not path:
-        return []
-
-    dx0, dy0 = path[0]  # 시작점 기준
-    image_coords = []
-
-    for dx, dy in path:
-        # 경로를 전체적으로 시작점 기준으로 평행이동
-        rel_dx = dx - dx0
-        rel_dy = dy - dy0
-        x = int(base_x + rel_dx)
-        y = int(base_y - rel_dy)
-
-        # 이미지 범위 클리핑
-        x = max(0, min(x, IMAGE_WIDTH - 1))
-        y = max(0, min(y, IMAGE_HEIGHT - 1))
-        image_coords.append((x, y))
-
-    return image_coords
-
-def visualize_path(image, path):
-    """경로를 이미지에 시각화"""
-    if not path:
-        return image
-
-    # 시작점 기준 상대 좌표로 평행 이동
-    dx0, dy0 = path[0]
-    adjusted_path = [(dx - dx0, dy - dy0) for dx, dy in path]
-
-    # 이미지 좌표계로 변환 (기준점은 항상 이미지 하단 중앙)
-    image_coords = []
-    for dx, dy in adjusted_path:
-        x = int(BASE_X + dx)
-        y = int(BASE_Y - dy)
-        x = max(0, min(x, IMAGE_WIDTH - 1))
-        y = max(0, min(y, IMAGE_HEIGHT - 1))
-        image_coords.append((x, y))
-
-    # 경로 포인트를 numpy 배열로 변환
-    points = np.array(image_coords, dtype=np.int32).reshape((-1, 1, 2))
-
-    # 경로 그리기
-    cv2.polylines(image, [points], False, (0, 255, 0), 2)
-
-    # 시작점과 끝점 표시
-    if image_coords:
-        cv2.circle(image, image_coords[0], 5, (0, 0, 255), -1)  # 시작점
-        cv2.circle(image, image_coords[-1], 5, (255, 0, 0), -1)  # 끝점
-        rospy.loginfo(f"경로 시작점 (이미지 좌표): {image_coords[0]}, 끝점: {image_coords[-1]}")
-        rospy.loginfo(f"원본 경로 시작점: {path[0]}, 끝점: {path[-1]}")
-
-    return image
-
-def generate_lane_change_path(current_lane, target_lane, start_x, left_x, right_x):
-    """차선 변경 경로 생성"""
-    if current_lane == 0 or target_lane == 0:
-        return [], 0
-    
-    # 차선 중심점 계산
-    if left_x != 130 and right_x != -130:
-        center_x = (left_x + right_x) / 2
-    elif left_x != 130:
-        center_x = left_x + 75  # 차선 폭 가정
-    elif right_x != -130:
-        center_x = right_x - 75  # 차선 폭 가정
+    if lookahead_distance < 0.1: # 목표점이 매우 가까우면 (0.01에서 증가)
+        steering_angle_rad = 0.0 # 직진
     else:
-        return [], 0
+        steering_angle_rad = math.atan2(2.0 * WHEELBASE * math.sin(alpha_rad), lookahead_distance)
+
+    steering_angle_deg = 6* math.degrees(steering_angle_rad) 
+    steering_angle_deg = max(min(steering_angle_deg, 50.0), -50.0) 
     
-    # 차선 변경 방향 결정
-    if current_lane == 1 and target_lane == 2:  # 1차선 → 2차선
-        dx = 90  #150# 오른쪽으로 이동
-        dy = LANE_CHANGE_DISTANCE  # 전방 거리
-        direction = 1  # 우회전
-    elif current_lane == 2 and target_lane == 1:  # 2차선 → 1차선
-        dx = -90  #-150# 왼쪽으로 이동
-        dy = LANE_CHANGE_DISTANCE  # 전방 거리
-        direction = -1  # 좌회전
+    # --- ◀ 여기서부터 감속 로직을 curvature 기반에서 steering angle 기반으로 변경 ▶ ---
+    max_steering_deg = 50.0                   # Pure Pursuit에서 clamp한 최대조향각과 동일하게 설정
+    reduction_gain = 0.9                      # steering_angle_deg == max_steering_deg일 때, 속도를 70% 줄이겠다는 의미
+    min_speed_factor = 0.9                    # 너무 급감속되지 않도록 최소 배율 설정
+
+    raw_reduction = (abs(steering_angle_deg) / max_steering_deg) * reduction_gain
+    speed_reduction_factor = max(min_speed_factor, 1.0 - raw_reduction)
+
+    final_speed = CONE_DRIVE_MAX_SPEED * speed_reduction_factor
+    # --- ▲ 감속 로직 끝 ▲ ---
+    
+    # --- [추가] 가속 제한 로직 ---
+    global last_successful_cone_speed, MAX_CONE_ACCELERATION
+    if last_successful_cone_speed is not None:
+        # 이전 속도보다 final_speed가 많이 증가하지 않도록 제한
+        max_allowed_speed = last_successful_cone_speed + MAX_CONE_ACCELERATION
+        final_speed = min(final_speed, max_allowed_speed)
+    # --- ▲ 가속 제한 끝 ▲ ---
+    
+    return steering_angle_deg, final_speed
+
+
+def is_driving_in_cone_mode_now():
+    global lane_info_data, cone_lanes_data, cone_mode_activated_time
+    global last_cone_seen_time
+    camera_sees_cones = False
+    if lane_info_data is not None and hasattr(lane_info_data, 'cone_detected_flag') and lane_info_data.cone_detected_flag:
+        camera_sees_cones = True
+
+    lidar_sees_enough_cones_for_control = False
+    if cone_lanes_data is not None:
+        raw_left_cones_np = np.array([[p.x, p.y] for p in cone_lanes_data.raw_left_cones]) if cone_lanes_data.raw_left_cones else np.array([])
+        raw_right_cones_np = np.array([[p.x, p.y] for p in cone_lanes_data.raw_right_cones]) if cone_lanes_data.raw_right_cones else np.array([])
+        center_path_np = np.array([[p.x, p.y] for p in cone_lanes_data.center_path]) if cone_lanes_data.center_path else np.array([])
+        left_ok = raw_left_cones_np.shape[0] >= MIN_CONES_FOR_LANE_SEGMENT
+        right_ok = raw_right_cones_np.shape[0] >= MIN_CONES_FOR_LANE_SEGMENT
+        center_ok = center_path_np.shape[0] >= 1 # pure_pursuit_cone_control에서 최소 1개 필요 (방어 로직 고려)
+        time_in_cone_mode = float('inf')
+        if cone_mode_activated_time is not None: time_in_cone_mode = time.time() - cone_mode_activated_time
+        if (left_ok and right_ok and center_ok) or \
+           ((left_ok or right_ok) and center_ok and time_in_cone_mode <= ONE_LANE_DRIVING_TIMEOUT_SEC) or \
+           (center_ok and time_in_cone_mode <= ONE_LANE_DRIVING_TIMEOUT_SEC): # 중앙 경로만 있어도 일정 시간 동안은 콘 모드 시도
+            lidar_sees_enough_cones_for_control = True
+
+    현재_인식 = camera_sees_cones and lidar_sees_enough_cones_for_control
+    now = time.time()
+
+    if 현재_인식:
+        # 콘 체인을 정상 인식한 시점 업데이트
+        last_cone_seen_time = now
+        if cone_mode_activated_time is None:
+            cone_mode_activated_time = now
+            rospy.loginfo(f"Cone driving mode ACTIVATED at {cone_mode_activated_time:.2f}")
+        return True
     else:
-        return [], 0
-    
-    # 경로 생성
-    path = generate_quadratic_path(dx, dy, theta=0, steps=PATH_POINTS)
-    
-    # 경로를 실제 시작점 기준으로 변환
-    adjusted_path = [(start_x + dx, BASE_Y - dy) for dx, dy in path]
-    
-    # 디버깅을 위한 경로 정보 출력
-    if adjusted_path:
-        rospy.loginfo(f"생성된 경로: 시작점 {adjusted_path[0]}, 끝점 {adjusted_path[-1]}")
-        rospy.loginfo(f"차선 변경 방향: {'우회전' if direction > 0 else '좌회전'}, 이동 거리: {abs(dx)}")
-        rospy.loginfo(f"시작 x좌표: {start_x}, 차선 중심: {center_x}")
-    
-    return adjusted_path, direction
+        # 콘 체인이 끊겼더라도 마지막 인식 후 3초 이내면 여전히 콘 모드 유지
+        if last_cone_seen_time is not None and (now - last_cone_seen_time) < 6.0:          ###라바콘 주행 pure pursuit  유지
+            rospy.loginfo_throttle(1.0,
+                f"Cone driving mode 유지: 마지막 인식 {now - last_cone_seen_time:.2f}s 전 (3s 이하)")
+            return True
+        # 3초가 지나면 콘 모드 해제
+        if cone_mode_activated_time is not None:
+            rospy.loginfo(f"Cone driving mode DEACTIVATED (Prev activation: {cone_mode_activated_time:.2f})")
+        cone_mode_activated_time = None
+        last_cone_seen_time = None
+        return False
 
-def lane_change_control(path, current_x, current_y, current_angle, direction):
-    global L
-    """차선 변경 제어"""
-    if not path:
-        return 0.0
-    
-    # 현재 위치에서 가장 가까운 경로 포인트 찾기
-    min_dist = float('inf')
-    closest_idx = 0
-    
-    for i, (x, y) in enumerate(path):
-        dist = math.sqrt((x - current_x)**2 + (y - current_y)**2)
-        if dist < min_dist:
-            min_dist = dist
-            closest_idx = i
-    
-    # 전방 주시 포인트 찾기
-    look_ahead_idx = min(closest_idx + 20, len(path) - 1)
-    target_x, target_y = path[look_ahead_idx]
-    
-    # 조향각 계산
-    alpha = math.atan2(target_y - current_y, target_x - current_x) - current_angle
-    base = math.degrees(math.atan2(6 * math.sin(alpha), 15))
-    steering_angle = direction * abs(base)
-    
-    # 조향각 제한 (-50 ~ 50도)
-    steering_angle = max(min(steering_angle, 50.0), -50.0)
-    
-    return steering_angle
+# =============================================
+# 메인 실행 함수
+# =============================================
+def start_driving():
+    global motor_control, image_raw, lidar_ranges, traffic_light_go
+    global lane_info_data, cone_lanes_data 
+    global current_steering_angle, current_target_speed
+    global last_successful_cone_steering, last_successful_cone_speed, cone_control_failure_count # 추가된 전역 변수
 
-# #=============================================
-# # 1) 콘 구역 판단 함수 (min_points=2)
-# #=============================================
-# def find_cone_section(ranges,
-#                       y_threshold=7.0,
-#                       min_points=2,
-#                       fov_deg=45):
-#     count = 0
-#     for i, r in enumerate(ranges):
-#         if r <= 0.0 or np.isinf(r):
-#             continue
-#         angle = math.radians(i if i <= 180 else i - 360)
-#         y = r * math.cos(angle)
-#         if 0 < y < y_threshold and abs(math.degrees(angle)) <= fov_deg:
-#             count += 1
-#             if count >= min_points:
-#                 return True
-#     return False
-
-# #=============================================
-# # 2) 콘 구역 내 최대 gap 찾기
-# #=============================================
-# def find_cone_gap(ranges,
-#                   y_threshold=7.0,
-#                   x_clip=100.0):
-#     xs = []
-#     for i, r in enumerate(ranges):
-#         if r <= 0.0 or np.isinf(r):
-#             continue
-#         angle = math.radians(i if i <= 180 else i - 360)
-#         y = r * math.cos(angle)
-#         if 0 < y < y_threshold:
-#             x = r * math.sin(angle)
-#             if abs(x) <= x_clip:
-#                 xs.append(x)
-#     if len(xs) < 2:
-#         return 0.0
-#     xs.sort()
-#     max_gap, best_idx = 0.0, 0
-#     for j in range(len(xs)-1):
-#         gap = xs[j+1] - xs[j]
-#         if gap > max_gap:
-#             max_gap, best_idx = gap, j
-#     x_mid = (xs[best_idx] + xs[best_idx+1]) / 2.0
-#     return math.degrees(math.atan2(x_mid, y_threshold/2.0))
-
-
-#=============================================
-# 실질적인 메인 함수 
-#=============================================
-def start():
-    global motor, image, ranges
-    prev_angle = 0.0
-    print("Start program --------------")
-
-    #=========================================
-    # 노드를 생성하고, 구독/발행할 토픽들을 선언합니다.
-    #=========================================
-    rospy.init_node('Track_Driver')
+    rospy.init_node('Track_Driver_Node')
+    
     rospy.Subscriber("/usb_cam/image_raw/", Image, usbcam_callback, queue_size=1)
-    rospy.Subscriber("/scan", LaserScan, lidar_callback, queue_size=1)
-    rospy.Subscriber("lane_info", laneinfo, lane_callback, queue_size=1)
-    motor = rospy.Publisher('xycar_motor', XycarMotor, queue_size=1)
-        
-    #=========================================
-    # 노드들로부터 첫번째 토픽들이 도착할 때까지 기다립니다.
-    #=========================================
-    rospy.wait_for_message("/usb_cam/image_raw/", Image)
-    print("Camera Ready --------------")
-    rospy.wait_for_message("/scan", LaserScan)
-    print("Lidar Ready ----------")
+    rospy.Subscriber("/scan", LaserScan, lidar_scan_callback, queue_size=1) 
+    rospy.Subscriber("/lane_info", laneinfo, lane_info_callback, queue_size=1)
+    rospy.Subscriber("/cone_lanes", ConeLanes, cone_lanes_info_callback, queue_size=1) 
     
-    #=========================================
-    # 라이다 스캔정보에 대한 시각화 준비를 합니다.
-    #=========================================
-    plt.ion()
-    plt.show()
-    print("Lidar Visualizer Ready ----------")
+    motor_control = rospy.Publisher('xycar_motor', XycarMotor, queue_size=1)
     
-    print("======================================")
-    print(" S T A R T    D R I V I N G ...")
-    print("======================================")
-    
-    #=========================================
-    # 메인 루프 
-    #=========================================
+    rospy.loginfo("Waiting for first messages...")
+    try:
+        rospy.wait_for_message("/usb_cam/image_raw/", Image, timeout=15.0)
+        rospy.wait_for_message("/scan", LaserScan, timeout=5.0) # 차량 감지에 필요
+        # lane_info와 cone_lanes는 상황에 따라 없을 수 있으므로, 타임아웃 시 경고만 하고 진행
+        if not rospy.wait_for_message("/lane_info", laneinfo, timeout=2.0):
+            rospy.logwarn("Timeout waiting for /lane_info. Proceeding, but lane following might not work initially.")
+        # if not rospy.wait_for_message("/cone_lanes", ConeLanes, timeout=2.0):
+        #     rospy.logwarn("Timeout waiting for /cone_lanes. Proceeding, but cone driving might not work initially.")
+    except rospy.ROSException as e:
+        rospy.logerr(f"Timeout waiting for essential messages (Image/Scan): {e}")
+        return # 이미지나 스캔 없이는 주행 불가
+
+    rospy.loginfo("Essential topics subscribed or timeout handled. Starting main loop.")
+    rate = rospy.Rate(20) 
+
     while not rospy.is_shutdown():
-        if image.size != 0:
-            # 원본 이미지 복사
-            display_img = image.copy()
-            
-            # 차선 변경 경로 시각화
-            if is_lane_changing and lane_change_path:
-                display_img = visualize_path(display_img, lane_change_path)
-            
-            # 이미지 표시
-            #cv2.imshow("original", display_img)
-            #cv2.imshow("gray", cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
+        if image_raw.size == 0 or lidar_ranges is None : 
+            rospy.logwarn_throttle(1.0, "Waiting for image_raw or lidar_ranges data...")
+            rate.sleep()
+            continue
 
-        if ranges is not None:            
-            angles = np.linspace(0,2*np.pi, len(ranges))+np.pi/2
-            x = ranges * np.cos(angles)
-            y = ranges * np.sin(angles)
+        perform_cone_driving = is_driving_in_cone_mode_now()
+        angle_cmd, speed_cmd = None, None
 
-            lidar_points.set_data(x, y)
-            fig.canvas.draw_idle()
-            plt.pause(0.01)
+        if perform_cone_driving:
+            rospy.loginfo_throttle(0.5, "Attempting Mode: Cone Driving")
+            if cone_lanes_data is not None:
+                temp_angle, temp_speed = pure_pursuit_cone_control()
+                if temp_angle is not None and temp_speed is not None:
+                    angle_cmd = temp_angle
+                    speed_cmd = temp_speed
+                    last_successful_cone_steering = angle_cmd
+                    last_successful_cone_speed = speed_cmd
+                    cone_control_failure_count = 0 # 성공 시 카운터 리셋
+                    rospy.loginfo_throttle(0.5, "Succeeded: Cone Driving Mode")
+                else: # Pure Pursuit 연산 실패
+                    cone_control_failure_count += 1
+                    rospy.logwarn(f"Pure Pursuit (cone) control failed. Count: {cone_control_failure_count}/{MAX_CONSECUTIVE_CONE_FAILURES}")
+                    if cone_control_failure_count <= MAX_CONSECUTIVE_CONE_FAILURES:
+                        angle_cmd = last_successful_cone_steering
+                        speed_cmd = last_successful_cone_speed
+                        rospy.logwarn(f"Using last successful cone control values: Angle={angle_cmd:.2f}, Speed={speed_cmd:.2f}")
+                    else: # 연속 실패 횟수 초과
+                        rospy.logerr(f"Persistent cone control failure. Falling back from cone mode.")
+                        perform_cone_driving = False # 차선 주행 모드로 강제 전환
+                        cone_control_failure_count = 0 # 다음 콘 모드 진입을 위해 리셋
+            else:
+                rospy.logwarn_throttle(1.0, "Cone mode indicated, but no cone_lanes_data. Attempting fallback or using old values.")
+                cone_control_failure_count +=1 # 데이터 없는 것도 실패로 간주
+                if cone_control_failure_count <= MAX_CONSECUTIVE_CONE_FAILURES:
+                    angle_cmd = last_successful_cone_steering
+                    speed_cmd = last_successful_cone_speed
+                else:
+                    perform_cone_driving = False
+                    cone_control_failure_count = 0
+        
+        if not perform_cone_driving: # 차선 주행 모드 (위에서 fallback 되었거나 원래 차선모드)
+            rospy.loginfo_throttle(0.5, "Attempting Mode: Lane Following")
+            cone_control_failure_count = 0 # 차선 주행 모드 진입 시 콘 실패 카운트 리셋
+            if lane_info_data is not None:
+                angle_cmd_lane, speed_cmd_lane = kanayama_lane_control()
+                if angle_cmd is None: # 콘 주행에서 넘어왔고, 콘 주행이 실패한 경우
+                    angle_cmd = angle_cmd_lane
+                    speed_cmd = speed_cmd_lane
+                rospy.loginfo_throttle(0.5, "Mode: Lane Following (or fallback)")
+            else: 
+                 rospy.logwarn_throttle(1.0, "Lane following mode, but no lane_info_data. Control may be erratic.")
+                 if angle_cmd is None: # 콘 주행도 실패했고, 차선 정보도 없으면 정지
+                    angle_cmd = 0.0
+                    speed_cmd = 0.0
 
-            steering_angle, v = kanayama_control()
-            tl_state = detect_traffic_light(image)
-            # 신호등 상태 기반 출발/정지 플래그 제어
-            if tl_state == 'green':
-                light_go = True
-            elif tl_state in ('red', 'yellow'):
-                light_go = False
-            # 'none'이면 이전 상태 유지
-            #light_go = True
-            #rospy.loginfo(f"[TL] state: {tl_state}, go: {light_go}")
-            speed = v if light_go else 0.0
-            drive(angle=steering_angle, speed=speed)
-            
-            # 계산된 조향각으로 주행
-            time.sleep(0.1)
-            
-            cv2.waitKey(1)
 
-#=============================================
-# 메인함수를 호출합니다.
-# start() 함수가 실질적인 메인함수입니다.
-#=============================================
+        if angle_cmd is None or speed_cmd is None: 
+            rospy.logerr_throttle(1.0, "CRITICAL: No valid control command generated after all logic. Stopping vehicle.")
+            current_steering_angle = 0.0
+            current_target_speed = 0.0
+        else:
+            current_steering_angle = angle_cmd
+            current_target_speed = speed_cmd
+
+        tl_state = detect_traffic_light(image_raw)
+        if tl_state == 'green': traffic_light_go = True
+        elif tl_state in ('red', 'yellow'): traffic_light_go = False
+        
+        final_speed_command = current_target_speed
+        
+        # is_actually_in_cone_driving_state는 perform_cone_driving으로 대체 가능 (위에서 이미 로직 반영됨)
+        if perform_cone_driving and angle_cmd is not None and cone_control_failure_count <= MAX_CONSECUTIVE_CONE_FAILURES : 
+             rospy.loginfo_throttle(0.2, f"Ctrl (Cone): Angle={current_steering_angle:.2f}, Speed={final_speed_command:.2f} (TL ignored: {tl_state}, Failures: {cone_control_failure_count})")
+        else: 
+            if not traffic_light_go: final_speed_command = 0.0
+            rospy.loginfo_throttle(0.2, f"Ctrl (Lane/Fallback): Angle={current_steering_angle:.2f}, Speed={final_speed_command:.2f} (TL: {tl_state}, Go: {traffic_light_go})")
+
+        send_motor_command(current_steering_angle, final_speed_command)
+        rate.sleep()
+
 if __name__ == '__main__':
-    start()
+    try:
+        start_driving()
+    except rospy.ROSInterruptException:
+        rospy.loginfo("Track Driving node terminated.")
+    except Exception as e:
+        rospy.logerr(f"Unhandled exception in start_driving: {e}")
+    finally:
+        if motor_control: 
+             rospy.loginfo("Sending stop command to motor before exiting.")
+             send_motor_command(0.0, 0.0)
+        rospy.loginfo("Track Driving node shutdown complete.")

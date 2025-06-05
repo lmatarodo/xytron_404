@@ -15,3 +15,7 @@ int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 �
 
 # 중앙 주행 경로
 geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트
+
+
+geometry_msgs/Point[] raw_left_cones    # [추가됨] 클러스터링된 왼쪽 라바콘 원본 포인트
+geometry_msgs/Point[] raw_right_cones   # [추가됨] 클러스터링된 오른쪽 라바콘 원본 포인트

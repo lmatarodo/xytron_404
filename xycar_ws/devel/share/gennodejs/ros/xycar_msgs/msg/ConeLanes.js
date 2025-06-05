@@ -11,8 +11,8 @@ const _deserializer = _ros_msg_utils.Deserialize;
 const _arrayDeserializer = _deserializer.Array;
 const _finder = _ros_msg_utils.Find;
 const _getByteLength = _ros_msg_utils.getByteLength;
-let geometry_msgs = _finder('geometry_msgs');
 let std_msgs = _finder('std_msgs');
+let geometry_msgs = _finder('geometry_msgs');
 
 //-----------------------------------------------------------
 
@@ -28,6 +28,8 @@ class ConeLanes {
       this.right_lane_points = null;
       this.right_lane_degree = null;
       this.center_path = null;
+      this.raw_left_cones = null;
+      this.raw_right_cones = null;
     }
     else {
       if (initObj.hasOwnProperty('header')) {
@@ -78,6 +80,18 @@ class ConeLanes {
       else {
         this.center_path = [];
       }
+      if (initObj.hasOwnProperty('raw_left_cones')) {
+        this.raw_left_cones = initObj.raw_left_cones
+      }
+      else {
+        this.raw_left_cones = [];
+      }
+      if (initObj.hasOwnProperty('raw_right_cones')) {
+        this.raw_right_cones = initObj.raw_right_cones
+      }
+      else {
+        this.raw_right_cones = [];
+      }
     }
   }
 
@@ -109,6 +123,18 @@ class ConeLanes {
     // Serialize the length for message field [center_path]
     bufferOffset = _serializer.uint32(obj.center_path.length, buffer, bufferOffset);
     obj.center_path.forEach((val) => {
+      bufferOffset = geometry_msgs.msg.Point.serialize(val, buffer, bufferOffset);
+    });
+    // Serialize message field [raw_left_cones]
+    // Serialize the length for message field [raw_left_cones]
+    bufferOffset = _serializer.uint32(obj.raw_left_cones.length, buffer, bufferOffset);
+    obj.raw_left_cones.forEach((val) => {
+      bufferOffset = geometry_msgs.msg.Point.serialize(val, buffer, bufferOffset);
+    });
+    // Serialize message field [raw_right_cones]
+    // Serialize the length for message field [raw_right_cones]
+    bufferOffset = _serializer.uint32(obj.raw_right_cones.length, buffer, bufferOffset);
+    obj.raw_right_cones.forEach((val) => {
       bufferOffset = geometry_msgs.msg.Point.serialize(val, buffer, bufferOffset);
     });
     return bufferOffset;
@@ -149,6 +175,20 @@ class ConeLanes {
     for (let i = 0; i < len; ++i) {
       data.center_path[i] = geometry_msgs.msg.Point.deserialize(buffer, bufferOffset)
     }
+    // Deserialize message field [raw_left_cones]
+    // Deserialize array length for message field [raw_left_cones]
+    len = _deserializer.uint32(buffer, bufferOffset);
+    data.raw_left_cones = new Array(len);
+    for (let i = 0; i < len; ++i) {
+      data.raw_left_cones[i] = geometry_msgs.msg.Point.deserialize(buffer, bufferOffset)
+    }
+    // Deserialize message field [raw_right_cones]
+    // Deserialize array length for message field [raw_right_cones]
+    len = _deserializer.uint32(buffer, bufferOffset);
+    data.raw_right_cones = new Array(len);
+    for (let i = 0; i < len; ++i) {
+      data.raw_right_cones[i] = geometry_msgs.msg.Point.deserialize(buffer, bufferOffset)
+    }
     return data;
   }
 
@@ -158,7 +198,9 @@ class ConeLanes {
     length += 24 * object.left_lane_points.length;
     length += 24 * object.right_lane_points.length;
     length += 24 * object.center_path.length;
-    return length + 16;
+    length += 24 * object.raw_left_cones.length;
+    length += 24 * object.raw_right_cones.length;
+    return length + 24;
   }
 
   static datatype() {
@@ -168,7 +210,7 @@ class ConeLanes {
 
   static md5sum() {
     //Returns md5sum for a message object
-    return 'af8510db732fe4223bfc5f0cf49c6646';
+    return '5c7eb5d58bf4ebb872021d1391e4b03c';
   }
 
   static messageDefinition() {
@@ -191,6 +233,10 @@ class ConeLanes {
     
     # 중앙 주행 경로
     geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트
+    
+    
+    geometry_msgs/Point[] raw_left_cones    # [추가됨] 클러스터링된 왼쪽 라바콘 원본 포인트
+    geometry_msgs/Point[] raw_right_cones   # [추가됨] 클러스터링된 오른쪽 라바콘 원본 포인트
     ================================================================================
     MSG: std_msgs/Header
     # Standard metadata for higher-level stamped data types.
@@ -286,6 +332,26 @@ class ConeLanes {
     }
     else {
       resolved.center_path = []
+    }
+
+    if (msg.raw_left_cones !== undefined) {
+      resolved.raw_left_cones = new Array(msg.raw_left_cones.length);
+      for (let i = 0; i < resolved.raw_left_cones.length; ++i) {
+        resolved.raw_left_cones[i] = geometry_msgs.msg.Point.Resolve(msg.raw_left_cones[i]);
+      }
+    }
+    else {
+      resolved.raw_left_cones = []
+    }
+
+    if (msg.raw_right_cones !== undefined) {
+      resolved.raw_right_cones = new Array(msg.raw_right_cones.length);
+      for (let i = 0; i < resolved.raw_right_cones.length; ++i) {
+        resolved.raw_right_cones[i] = geometry_msgs.msg.Point.Resolve(msg.raw_right_cones[i]);
+      }
+    }
+    else {
+      resolved.raw_right_cones = []
     }
 
     return resolved;

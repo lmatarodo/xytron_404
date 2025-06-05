@@ -41,7 +41,12 @@
     :reader lane_number
     :initarg :lane_number
     :type cl:integer
-    :initform 0))
+    :initform 0)
+   (cone_detected_flag
+    :reader cone_detected_flag
+    :initarg :cone_detected_flag
+    :type cl:boolean
+    :initform cl:nil))
 )
 
 (cl:defclass laneinfo (<laneinfo>)
@@ -86,6 +91,11 @@
 (cl:defmethod lane_number-val ((m <laneinfo>))
   (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:lane_number-val is deprecated.  Use xycar_msgs-msg:lane_number instead.")
   (lane_number m))
+
+(cl:ensure-generic-function 'cone_detected_flag-val :lambda-list '(m))
+(cl:defmethod cone_detected_flag-val ((m <laneinfo>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:cone_detected_flag-val is deprecated.  Use xycar_msgs-msg:cone_detected_flag instead.")
+  (cone_detected_flag m))
 (cl:defmethod roslisp-msg-protocol:serialize ((msg <laneinfo>) ostream)
   "Serializes a message object of type '<laneinfo>"
   (cl:let ((bits (roslisp-utils:encode-single-float-bits (cl:slot-value msg 'left_x))))
@@ -124,6 +134,7 @@
     (cl:write-byte (cl:ldb (cl:byte 8 16) unsigned) ostream)
     (cl:write-byte (cl:ldb (cl:byte 8 24) unsigned) ostream)
     )
+  (cl:write-byte (cl:ldb (cl:byte 8 0) (cl:if (cl:slot-value msg 'cone_detected_flag) 1 0)) ostream)
 )
 (cl:defmethod roslisp-msg-protocol:deserialize ((msg <laneinfo>) istream)
   "Deserializes a message object of type '<laneinfo>"
@@ -169,6 +180,7 @@
       (cl:setf (cl:ldb (cl:byte 8 16) unsigned) (cl:read-byte istream))
       (cl:setf (cl:ldb (cl:byte 8 24) unsigned) (cl:read-byte istream))
       (cl:setf (cl:slot-value msg 'lane_number) (cl:if (cl:< unsigned 2147483648) unsigned (cl:- unsigned 4294967296))))
+    (cl:setf (cl:slot-value msg 'cone_detected_flag) (cl:not (cl:zerop (cl:read-byte istream))))
   msg
 )
 (cl:defmethod roslisp-msg-protocol:ros-datatype ((msg (cl:eql '<laneinfo>)))
@@ -179,16 +191,16 @@
   "xycar_msgs/laneinfo")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql '<laneinfo>)))
   "Returns md5sum for a message object of type '<laneinfo>"
-  "6d0d242a09af36c4e0ef3fbf421ba402")
+  "80e7564081aa5c4a700b9b80391fcc78")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql 'laneinfo)))
   "Returns md5sum for a message object of type 'laneinfo"
-  "6d0d242a09af36c4e0ef3fbf421ba402")
+  "80e7564081aa5c4a700b9b80391fcc78")
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql '<laneinfo>)))
   "Returns full string definition for message of type '<laneinfo>"
-  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope~%int32 lane_number  # 1: 1차선, 2: 2차선 ~%~%"))
+  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope~%int32 lane_number  # 1: 1차선, 2: 2차선 ~%bool cone_detected_flag ~%~%"))
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql 'laneinfo)))
   "Returns full string definition for message of type 'laneinfo"
-  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope~%int32 lane_number  # 1: 1차선, 2: 2차선 ~%~%"))
+  (cl:format cl:nil "float32 left_x~%float32 left_y~%float32 left_slope~%float32 right_x~%float32 right_y~%float32 right_slope~%int32 lane_number  # 1: 1차선, 2: 2차선 ~%bool cone_detected_flag ~%~%"))
 (cl:defmethod roslisp-msg-protocol:serialization-length ((msg <laneinfo>))
   (cl:+ 0
      4
@@ -198,6 +210,7 @@
      4
      4
      4
+     1
 ))
 (cl:defmethod roslisp-msg-protocol:ros-message-to-list ((msg <laneinfo>))
   "Converts a ROS message object to a list"
@@ -209,4 +222,5 @@
     (cl:cons ':right_y (right_y msg))
     (cl:cons ':right_slope (right_slope msg))
     (cl:cons ':lane_number (lane_number msg))
+    (cl:cons ':cone_detected_flag (cone_detected_flag msg))
 ))

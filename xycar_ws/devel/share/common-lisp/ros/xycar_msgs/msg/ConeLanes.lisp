@@ -46,6 +46,16 @@
     :reader center_path
     :initarg :center_path
     :type (cl:vector geometry_msgs-msg:Point)
+   :initform (cl:make-array 0 :element-type 'geometry_msgs-msg:Point :initial-element (cl:make-instance 'geometry_msgs-msg:Point)))
+   (raw_left_cones
+    :reader raw_left_cones
+    :initarg :raw_left_cones
+    :type (cl:vector geometry_msgs-msg:Point)
+   :initform (cl:make-array 0 :element-type 'geometry_msgs-msg:Point :initial-element (cl:make-instance 'geometry_msgs-msg:Point)))
+   (raw_right_cones
+    :reader raw_right_cones
+    :initarg :raw_right_cones
+    :type (cl:vector geometry_msgs-msg:Point)
    :initform (cl:make-array 0 :element-type 'geometry_msgs-msg:Point :initial-element (cl:make-instance 'geometry_msgs-msg:Point))))
 )
 
@@ -96,6 +106,16 @@
 (cl:defmethod center_path-val ((m <ConeLanes>))
   (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:center_path-val is deprecated.  Use xycar_msgs-msg:center_path instead.")
   (center_path m))
+
+(cl:ensure-generic-function 'raw_left_cones-val :lambda-list '(m))
+(cl:defmethod raw_left_cones-val ((m <ConeLanes>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:raw_left_cones-val is deprecated.  Use xycar_msgs-msg:raw_left_cones instead.")
+  (raw_left_cones m))
+
+(cl:ensure-generic-function 'raw_right_cones-val :lambda-list '(m))
+(cl:defmethod raw_right_cones-val ((m <ConeLanes>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:raw_right_cones-val is deprecated.  Use xycar_msgs-msg:raw_right_cones instead.")
+  (raw_right_cones m))
 (cl:defmethod roslisp-msg-protocol:serialize ((msg <ConeLanes>) ostream)
   "Serializes a message object of type '<ConeLanes>"
   (roslisp-msg-protocol:serialize (cl:slot-value msg 'header) ostream)
@@ -128,6 +148,20 @@
     (cl:write-byte (cl:ldb (cl:byte 8 24) __ros_arr_len) ostream))
   (cl:map cl:nil #'(cl:lambda (ele) (roslisp-msg-protocol:serialize ele ostream))
    (cl:slot-value msg 'center_path))
+  (cl:let ((__ros_arr_len (cl:length (cl:slot-value msg 'raw_left_cones))))
+    (cl:write-byte (cl:ldb (cl:byte 8 0) __ros_arr_len) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 8) __ros_arr_len) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 16) __ros_arr_len) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 24) __ros_arr_len) ostream))
+  (cl:map cl:nil #'(cl:lambda (ele) (roslisp-msg-protocol:serialize ele ostream))
+   (cl:slot-value msg 'raw_left_cones))
+  (cl:let ((__ros_arr_len (cl:length (cl:slot-value msg 'raw_right_cones))))
+    (cl:write-byte (cl:ldb (cl:byte 8 0) __ros_arr_len) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 8) __ros_arr_len) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 16) __ros_arr_len) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 24) __ros_arr_len) ostream))
+  (cl:map cl:nil #'(cl:lambda (ele) (roslisp-msg-protocol:serialize ele ostream))
+   (cl:slot-value msg 'raw_right_cones))
 )
 (cl:defmethod roslisp-msg-protocol:deserialize ((msg <ConeLanes>) istream)
   "Deserializes a message object of type '<ConeLanes>"
@@ -170,6 +204,26 @@
     (cl:dotimes (i __ros_arr_len)
     (cl:setf (cl:aref vals i) (cl:make-instance 'geometry_msgs-msg:Point))
   (roslisp-msg-protocol:deserialize (cl:aref vals i) istream))))
+  (cl:let ((__ros_arr_len 0))
+    (cl:setf (cl:ldb (cl:byte 8 0) __ros_arr_len) (cl:read-byte istream))
+    (cl:setf (cl:ldb (cl:byte 8 8) __ros_arr_len) (cl:read-byte istream))
+    (cl:setf (cl:ldb (cl:byte 8 16) __ros_arr_len) (cl:read-byte istream))
+    (cl:setf (cl:ldb (cl:byte 8 24) __ros_arr_len) (cl:read-byte istream))
+  (cl:setf (cl:slot-value msg 'raw_left_cones) (cl:make-array __ros_arr_len))
+  (cl:let ((vals (cl:slot-value msg 'raw_left_cones)))
+    (cl:dotimes (i __ros_arr_len)
+    (cl:setf (cl:aref vals i) (cl:make-instance 'geometry_msgs-msg:Point))
+  (roslisp-msg-protocol:deserialize (cl:aref vals i) istream))))
+  (cl:let ((__ros_arr_len 0))
+    (cl:setf (cl:ldb (cl:byte 8 0) __ros_arr_len) (cl:read-byte istream))
+    (cl:setf (cl:ldb (cl:byte 8 8) __ros_arr_len) (cl:read-byte istream))
+    (cl:setf (cl:ldb (cl:byte 8 16) __ros_arr_len) (cl:read-byte istream))
+    (cl:setf (cl:ldb (cl:byte 8 24) __ros_arr_len) (cl:read-byte istream))
+  (cl:setf (cl:slot-value msg 'raw_right_cones) (cl:make-array __ros_arr_len))
+  (cl:let ((vals (cl:slot-value msg 'raw_right_cones)))
+    (cl:dotimes (i __ros_arr_len)
+    (cl:setf (cl:aref vals i) (cl:make-instance 'geometry_msgs-msg:Point))
+  (roslisp-msg-protocol:deserialize (cl:aref vals i) istream))))
   msg
 )
 (cl:defmethod roslisp-msg-protocol:ros-datatype ((msg (cl:eql '<ConeLanes>)))
@@ -180,16 +234,16 @@
   "xycar_msgs/ConeLanes")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql '<ConeLanes>)))
   "Returns md5sum for a message object of type '<ConeLanes>"
-  "af8510db732fe4223bfc5f0cf49c6646")
+  "5c7eb5d58bf4ebb872021d1391e4b03c")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql 'ConeLanes)))
   "Returns md5sum for a message object of type 'ConeLanes"
-  "af8510db732fe4223bfc5f0cf49c6646")
+  "5c7eb5d58bf4ebb872021d1391e4b03c")
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql '<ConeLanes>)))
   "Returns full string definition for message of type '<ConeLanes>"
-  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
+  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%~%~%geometry_msgs/Point[] raw_left_cones    # [추가됨] 클러스터링된 왼쪽 라바콘 원본 포인트~%geometry_msgs/Point[] raw_right_cones   # [추가됨] 클러스터링된 오른쪽 라바콘 원본 포인트~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql 'ConeLanes)))
   "Returns full string definition for message of type 'ConeLanes"
-  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
+  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%~%~%geometry_msgs/Point[] raw_left_cones    # [추가됨] 클러스터링된 왼쪽 라바콘 원본 포인트~%geometry_msgs/Point[] raw_right_cones   # [추가됨] 클러스터링된 오른쪽 라바콘 원본 포인트~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
 (cl:defmethod roslisp-msg-protocol:serialization-length ((msg <ConeLanes>))
   (cl:+ 0
      (roslisp-msg-protocol:serialization-length (cl:slot-value msg 'header))
@@ -200,6 +254,8 @@
      4 (cl:reduce #'cl:+ (cl:slot-value msg 'right_lane_points) :key #'(cl:lambda (ele) (cl:declare (cl:ignorable ele)) (cl:+ (roslisp-msg-protocol:serialization-length ele))))
      1
      4 (cl:reduce #'cl:+ (cl:slot-value msg 'center_path) :key #'(cl:lambda (ele) (cl:declare (cl:ignorable ele)) (cl:+ (roslisp-msg-protocol:serialization-length ele))))
+     4 (cl:reduce #'cl:+ (cl:slot-value msg 'raw_left_cones) :key #'(cl:lambda (ele) (cl:declare (cl:ignorable ele)) (cl:+ (roslisp-msg-protocol:serialization-length ele))))
+     4 (cl:reduce #'cl:+ (cl:slot-value msg 'raw_right_cones) :key #'(cl:lambda (ele) (cl:declare (cl:ignorable ele)) (cl:+ (roslisp-msg-protocol:serialization-length ele))))
 ))
 (cl:defmethod roslisp-msg-protocol:ros-message-to-list ((msg <ConeLanes>))
   "Converts a ROS message object to a list"
@@ -212,4 +268,6 @@
     (cl:cons ':right_lane_points (right_lane_points msg))
     (cl:cons ':right_lane_degree (right_lane_degree msg))
     (cl:cons ':center_path (center_path msg))
+    (cl:cons ':raw_left_cones (raw_left_cones msg))
+    (cl:cons ':raw_right_cones (raw_right_cones msg))
 ))

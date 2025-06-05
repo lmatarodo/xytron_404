@@ -15,4 +15,8 @@
           RIGHT_LANE_DEGREE
           CENTER_PATH-VAL
           CENTER_PATH
+          RAW_LEFT_CONES-VAL
+          RAW_LEFT_CONES
+          RAW_RIGHT_CONES-VAL
+          RAW_RIGHT_CONES
 ))

@@ -1,8 +1,8 @@
 file(REMOVE_RECURSE
-  "/home/taeyeong/xytron_404/xycar_ws/devel/include/xycar_msgs/ConeLanes.h"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarMotor.h"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarUltrasonic.h"
-  "/home/taeyeong/xytron_404/xycar_ws/devel/include/xycar_msgs/laneinfo.h"
+  "/home/sihoon/xytron_404/xycar_ws/devel/include/xycar_msgs/ConeLanes.h"
+  "/home/sihoon/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarMotor.h"
+  "/home/sihoon/xytron_404/xycar_ws/devel/include/xycar_msgs/XycarUltrasonic.h"
+  "/home/sihoon/xytron_404/xycar_ws/devel/include/xycar_msgs/laneinfo.h"
   "CMakeFiles/xycar_msgs_generate_messages_cpp"
 )
 
