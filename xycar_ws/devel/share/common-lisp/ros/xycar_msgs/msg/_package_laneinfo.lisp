@@ -13,4 +13,6 @@
           RIGHT_SLOPE
           LANE_NUMBER-VAL
           LANE_NUMBER
+          CONE_DETECTED_FLAG-VAL
+          CONE_DETECTED_FLAG
 ))

@@ -5,6 +5,7 @@ project(xycar_msgs)
 find_package(catkin REQUIRED COMPONENTS
   message_generation
   std_msgs
+  geometry_msgs
   sensor_msgs
 )
 
@@ -14,18 +15,20 @@ add_message_files(
   XycarMotor.msg
   XycarUltrasonic.msg
   laneinfo.msg
+  ConeLanes.msg
 )
 
 ## Generate added messages and services with any dependencies
 generate_messages(
   DEPENDENCIES
   std_msgs
+  geometry_msgs
   sensor_msgs
 )
 
 ## Declare a catkin package
 catkin_package(
-  CATKIN_DEPENDS message_runtime std_msgs sensor_msgs
+  CATKIN_DEPENDS message_runtime std_msgs geometry_msgs sensor_msgs
 )
 
 ## Build

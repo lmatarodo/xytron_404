@@ -1,0 +1,26 @@
+(cl:in-package xycar_msgs-msg)
+(cl:export '(HEADER-VAL
+          HEADER
+          CENTER_PATH-VAL
+          CENTER_PATH
+          LATERAL_ERROR-VAL
+          LATERAL_ERROR
+          TARGET_POINT_DETECTED-VAL
+          TARGET_POINT_DETECTED
+          TARGET_POINT-VAL
+          TARGET_POINT
+          TARGET_HEADING-VAL
+          TARGET_HEADING
+          LEFT_LANE_DETECTED-VAL
+          LEFT_LANE_DETECTED
+          RIGHT_LANE_DETECTED-VAL
+          RIGHT_LANE_DETECTED
+          LEFT_LANE_DEGREE-VAL
+          LEFT_LANE_DEGREE
+          RIGHT_LANE_DEGREE-VAL
+          RIGHT_LANE_DEGREE
+          LEFT_LANE_POINTS-VAL
+          LEFT_LANE_POINTS
+          RIGHT_LANE_POINTS-VAL
+          RIGHT_LANE_POINTS
+))

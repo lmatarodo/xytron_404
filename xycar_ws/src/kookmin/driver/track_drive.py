@@ -14,6 +14,7 @@ from xycar_msgs.msg import XycarMotor
 from xycar_msgs.msg import laneinfo
 from cv_bridge import CvBridge
 from sensor_msgs.msg import LaserScan
+from xycar_msgs.msg import ConeLanes # ConeLanes 메시지 import 추가
 import matplotlib.pyplot as plt
 
 #=============================================
@@ -25,7 +26,6 @@ motor = None  # 모터노드
 motor_msg = XycarMotor()  # 모터 토픽 메시지
 Fix_Speed = 37 #원래 10  # 모터 속도 고정 상수값 
 new_angle = 0  # 모터 조향각 초기값
-new_speed = Fix_Speed  # 모터 속도 초기값
 bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
 lane_data = None  # 차선 정보를 담을 변수
 k_p = Fix_Speed/25
@@ -33,13 +33,22 @@ k_para = 20
 k_lateral = 5
 light_go = False  # ← 초록불 인식 후 출발 유지
 L = 0.5
+target_cone_speed = 10
+
+### 추가: 라바콘 경로 및 제어 정보 저장을 위한 전역 변수 ###
+cone_path_data = None
+lateral_error_from_topic = 0.0
+target_point_detected = False
+target_point_from_topic = None
+target_heading_from_topic = 0.0
+###
 
 #차량 감지 관련
 vehicle_ahead = False
 detection_success_streak = 0
 DETECTION_DISTANCE_LOW = 5.0
 DETECTION_DISTANCE_HIGH = 40.0
-DETECTION_COUNT    = 4      # 연속으로 이만큼 포인트가 잡히면 차량으로 판정
+DETECTION_COUNT    = 6      # 연속으로 이만큼 포인트가 잡히면 차량으로 판정
 SECTOR_WIDTH       = 7      # 앞 0번 인덱스 기준으로 ±2 인덱스 조사
 DETECTION_STREAK_THRESHOLD = 2     # 스캔이 연속으로 성공해야 할 횟수
 
@@ -53,7 +62,7 @@ last_lane_change_time = 0  # 마지막 차선 변경 시간
 #LANE_CHANGE_INTERVAL = 6.0  #폐기 # 차선 변경 간격 (초)
 LANE_CHANGE_DURATION = 1.65  #3.0  차선 변경 소요 시간 (초)
 PATH_POINTS = 20  #30 # 경로 생성 시 샘플링할 포인트 수
-LANE_CHANGE_DISTANCE = 230 #200  # 차선 변경 시 전방 주시 거리
+LANE_CHANGE_DISTANCE = 300 #200  # 차선 변경 시 전방 주시 거리
 
 # 이미지 관련 상수
 IMAGE_WIDTH = 260  # 이미지 너비
@@ -61,14 +70,44 @@ IMAGE_HEIGHT = 260  # 이미지 높이
 BASE_X = 130  # 이미지 중앙 x좌표
 BASE_Y = 260  # 이미지 하단 y좌표
 
+#콘 레인
+TARGET_Y = 2.75
+
+### 추가: 라바콘 탈출 후 안정화(Stabilizer) 관련 변수 ###
+is_stabilizing = False
+stabilizer_start_time = 0.0
+prev_cone_detected_flag = False
+STABILIZER_DURATION = 3.0  # 안정화 지속 시간을 3초로 단축
+STABILIZER_SPEED = 15      # 안정화 모드 시 고정 속도를 15로 증가
+STABILIZER_KP = 0.5        # 안정화 모드의 조향 게인
+STABILIZER_KD = 0.3        # 안정화 모드의 미분 게인
+prev_angle = 0.0           # 이전 조향각 저장 변수
+
+# 차선 감지 관련 변수 추가
+last_left_lane_detected = True
+last_right_lane_detected = True
+left_lane_missing_time = 0
+right_lane_missing_time = 0
+LANE_MISSING_THRESHOLD = 2.0  # 차선 미감지 시 차선 변경 시도 시간 (초)
+
+# 이전 조향값 저장을 위한 변수들
+steering_history = []  # 이전 조향값들을 저장할 리스트
+MAX_HISTORY_SIZE = 10  # 저장할 최대 조향값 개수
+
+# 속도 증가 관련 전역 변수
+is_speed_boosted = False
+speed_boost_start_time = 0
+speed_boost_duration = 10.0  # 10초 동안 속도 증가 유지
+has_speed_boosted = False  # 전체 구간에서 속도 증가를 한 번만 하기 위한 플래그
+
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
 #=============================================
-fig, ax = plt.subplots(figsize=(8, 8))
-ax.set_xlim(-120, 120)
-ax.set_ylim(-120, 120)
-ax.set_aspect('equal')
-lidar_points, = ax.plot([], [], 'bo')
+#fig, ax = plt.subplots(figsize=(8, 8))
+#ax.set_xlim(-120, 120)
+#ax.set_ylim(-120, 120)
+#ax.set_aspect('equal')
+#lidar_points, = ax.plot([], [], 'bo')
 
 #=============================================
 # 콜백함수 - 카메라 토픽을 처리하는 콜백함수
@@ -112,6 +151,7 @@ def lidar_callback(data):
 def lane_callback(data):
     global lane_data, current_lane, is_lane_changing, lane_change_path
     global lane_change_direction, lane_change_start_time, last_lane_change_time
+    global has_speed_boosted, is_speed_boosted
     lane_data = data
     
     # 현재 시간 확인
@@ -121,7 +161,7 @@ def lane_callback(data):
     if data.lane_number in [1, 2]:
         current_lane = data.lane_number
 
-    # 차선 변경 조건
+    # 차선 변경 조건 - 장애물 감지만 있으면 무조건 차선 변경 시도
     if not is_lane_changing and vehicle_ahead:
         is_lane_changing = True
         lane_change_start_time = current_time
@@ -145,6 +185,25 @@ def lane_callback(data):
         )
 
         rospy.loginfo(f"차선 변경 시작: {current_lane} → {target_lane}")
+
+#=============================================
+# 콜백함수 - 라바콘 경로 토픽을 받아서 처리하는 콜백함수 (### 수정됨 ###)
+#=============================================
+def conelane_callback(data):
+    global cone_path_data, lateral_error_from_topic, target_point_detected
+    global target_point_from_topic, target_heading_from_topic
+
+    # 중앙 경로 저장
+    if data.center_path:
+        cone_path_data = data.center_path
+    else:
+        cone_path_data = None
+
+    # 제어에 직접 사용할 값들을 토픽에서 바로 받아 전역 변수에 저장
+    lateral_error_from_topic = data.lateral_error
+    target_point_detected = data.target_point_detected
+    target_heading_from_topic = data.target_heading if data.target_point_detected else 0.0
+    target_point_from_topic = data.target_point if data.target_point_detected else None
 
 #=============================================
 # 신호등 검출 함수
@@ -190,46 +249,21 @@ def drive(angle, speed):
 #=============================================
 # 차선 정보를 기반으로 조향각을 계산하는 함수
 #=============================================
-def kanayama_control():
-    global lane_data, current_lane, is_lane_changing
-    global lane_change_path, lane_change_direction, lane_change_start_time
-    global L
+def calculate_normal_steering():
+    """정상적인 조향각 계산 로직"""
+    global last_left_lane_detected, last_right_lane_detected
+    global left_lane_missing_time, right_lane_missing_time
+    global lane_data, L, steering_history, is_speed_boosted
+
     if lane_data is None:
-        return 0.0, Fix_Speed
-
-    # 차선 변경 중인 경우
-    if is_lane_changing and lane_change_path:
-        current_time = time.time()
-        
-        # 차선 변경 완료 조건 확인
-        if current_time - lane_change_start_time > LANE_CHANGE_DURATION:
-            is_lane_changing = False
-            lane_change_path = []
-            lane_change_direction = 0
-            rospy.loginfo("차선 변경 완료")
+        rospy.logwarn("No lane data received, using average steering angle.")
+        if steering_history:
+            avg_steering = sum(steering_history) / len(steering_history)
+            rospy.loginfo("평균 조향각 사용: %.1f도", avg_steering)
+            return avg_steering, Fix_Speed
         else:
-            # 현재 차선 중심점 계산
-            if lane_data.left_x != 130 and lane_data.right_x != -130:
-                current_x = (lane_data.left_x + lane_data.right_x) / 2
-            elif lane_data.left_x != 130:
-                current_x = lane_data.left_x + 75
-            elif lane_data.right_x != -130:
-                current_x = lane_data.right_x - 75
-            else:
-                current_x = BASE_X  # 기본값으로 이미지 중앙 사용
+            return 0.0, Fix_Speed
 
-            # 차선 변경 제어
-            steering_angle = lane_change_control(
-                lane_change_path,
-                current_x, BASE_Y,  # 실제 차량 위치 사용
-                math.radians(-(lane_data.left_slope + lane_data.right_slope)/2),
-                lane_change_direction
-            )
-            increased_speed = Fix_Speed*1.15
-            steering_angle = steering_angle*1.1
-            return steering_angle, increased_speed
-
-    # 기존의 kanayama_control 로직
     left_x = lane_data.left_x
     right_x = lane_data.right_x
     left_slope = lane_data.left_slope
@@ -241,17 +275,75 @@ def kanayama_control():
     K_phi = 3.0
     v_r = Fix_Speed
     
-    # lateral_err, heading_err 계산 (주신 코드 참고)
+    # 속도 증가 시 조향 제어 파라미터 조정
+    if is_speed_boosted:
+        K_y = 0.75  # 횡방향 오차에 대한 이득 감소
+        K_phi = 2.5  # 방향 오차에 대한 이득 감소
+    
+    current_time = time.time()
+    
     if left_x == 130 and right_x == -130:
-        rospy.logwarn("Both lanes lost, skipping control.")
-        return 0.0, Fix_Speed
+        rospy.logwarn("Both lanes lost, using average steering angle.")
+        if steering_history:
+            avg_steering = sum(steering_history) / len(steering_history)
+            rospy.loginfo("평균 조향각 사용: %.1f도", avg_steering)
+            return avg_steering, Fix_Speed
+        else:
+            return 0.0, Fix_Speed
     elif left_x == 130:
+        # 왼쪽 차선이 감지되지 않을 때
+        if not last_left_lane_detected:
+            # 이전에도 왼쪽 차선이 없었다면 시간 체크
+            if left_lane_missing_time == 0:
+                left_lane_missing_time = current_time
+            elif current_time - left_lane_missing_time >= LANE_MISSING_THRESHOLD:
+                # 2초 이상 왼쪽 차선이 없으면 오른쪽으로 차선 변경
+                lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
+                heading_err = right_slope
+                steering_angle = 15.0 if is_speed_boosted else 20.0  # 속도 증가 시 조향각 감소
+                rospy.loginfo("왼쪽 차선 2초 이상 미감지: 오른쪽으로 차선 변경 시도 (조향각: %.1f도)", steering_angle)
+                return steering_angle, v_r
+        else:
+            # 이전에는 왼쪽 차선이 있었던 경우
+            left_lane_missing_time = current_time
+            last_left_lane_detected = False
+            
         lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
         heading_err = right_slope
     elif right_x == -130:
+        # 오른쪽 차선이 감지되지 않을 때
+        if not last_right_lane_detected:
+            # 이전에도 오른쪽 차선이 없었다면 시간 체크
+            if right_lane_missing_time == 0:
+                right_lane_missing_time = current_time
+            elif current_time - right_lane_missing_time >= LANE_MISSING_THRESHOLD:
+                # 2초 이상 오른쪽 차선이 없으면 왼쪽으로 차선 변경
+                lateral_err = (0.5 - (left_x / 150.0)) * lane_width
+                heading_err = left_slope
+                steering_angle = -15.0 if is_speed_boosted else -20.0  # 속도 증가 시 조향각 감소
+                rospy.loginfo("오른쪽 차선 2초 이상 미감지: 왼쪽으로 차선 변경 시도 (조향각: %.1f도)", steering_angle)
+                return steering_angle, v_r
+        else:
+            # 이전에는 오른쪽 차선이 있었던 경우
+            right_lane_missing_time = current_time
+            last_right_lane_detected = False
+            
         lateral_err = (0.5 - (left_x / 150.0)) * lane_width
         heading_err = left_slope
     else:
+        # 양쪽 차선 모두 감지된 경우
+        last_left_lane_detected = True
+        last_right_lane_detected = True
+        left_lane_missing_time = 0
+        right_lane_missing_time = 0
+        
+        # 0으로 나누는 상황 방지
+        if abs(left_x + right_x) < 0.1:  # 매우 작은 값으로 설정
+            rospy.logwarn("차선 위치가 중앙에 너무 가까움, 이전 조향각 유지")
+            if steering_history:
+                avg_steering = sum(steering_history) / len(steering_history)
+                return avg_steering, v_r
+            return 0.0, v_r  # 현재 속도 유지하면서 조향각 0 반환
         lateral_err = -(left_x / (left_x + right_x) - 0.5) * lane_width
         heading_err = 0.5 * (left_slope + right_slope)
     heading_err *= -1
@@ -266,36 +358,90 @@ def kanayama_control():
     # 필요시 각도를 degree 단위로 변환 가능 (현재는 radian 그대로 사용)
     steering_angle = math.degrees(delta)
 
+    # 속도 증가 시 조향각 제한을 더 엄격하게 설정
+    if is_speed_boosted:
+        steering_angle = max(min(steering_angle, 20.0), -20.0)  # 속도 증가 시 조향각 제한
+    else:
+        steering_angle = max(min(steering_angle, 50.0), -50.0)  # 일반적인 조향각 제한
+
+    # 현재 조향각을 히스토리에 추가
+    steering_history.append(steering_angle)
+    if len(steering_history) > MAX_HISTORY_SIZE:
+        steering_history.pop(0)  # 가장 오래된 값 제거
+
     return steering_angle, v
 
+#=============================================
+# 라바콘 경로를 따라가는 카나야마 제어 함수 (### 수정 및 통합됨 ###)
+#=============================================
+def cone_kanayama_control():
+    global L, target_point_detected, lateral_error_from_topic, target_heading_from_topic
 
-def calculate_steering_angle():
-    if lane_data is None:
-        return 0.0
+    # 라바콘 감지 노드에서 목표점을 감지했는지 확인
+    if not target_point_detected:
+        rospy.logwarn("Target point not detected by cone perception node. Slowing down.")
+        return 0.0, target_cone_speed / 2 # 안전을 위해 감속 및 직진
+
+    # 1. 제어 오차 값들을 토픽에서 직접 사용
+    # lateral_error: y=0 근방에서의 차량 중심과 경로 중심 사이의 x축 거리
+    # heading_error: 목표 지점에서의 경로 방향 (차량 전방 y축 기준 radian 값)
+    lateral_err = lateral_error_from_topic
+    heading_err = target_heading_from_topic
     
-    # 왼쪽과 오른쪽 차선의 기울기를 이용하여 조향각 계산
-    left_slope = lane_data.left_slope
-    right_slope = lane_data.right_slope
+    # 2. 카나야마 제어 파라미터 (콘 주행에 맞게 튜닝 가능)
+    K_y = 0.0   # 횡방향 오차에 대한 게인
+    K_phi = 5 # 헤딩 오차에 대한 게인
+    v_r = target_cone_speed # 콘 구간 목표 속도
+
+    # 3. 각속도(w) 및 조향각(delta) 계산
+    v = v_r * math.cos(heading_err)
+    w = v_r * (K_y * lateral_err + K_phi * math.sin(heading_err))
     
-    # 두 차선의 기울기 평균을 사용
-    avg_slope = (left_slope + right_slope) / 2.0
+    delta = math.atan2(w * L, v)
+    steering_angle = math.degrees(delta)
     
-    # 기울기를 조향각으로 변환 (라디안 -> 각도)
-    steering_angle = -1*math.degrees(avg_slope)
-    
-    # 조향각 계산
-    #dx = lane_data.left_x
-    #dy = -lane_data.right_x
-    #normalized_para_angle = -((steering_angle>0)-(steering_angle<0))*(steering_angle/50)**2
-    #steering_angle = steering_angle + math.atan(x)
-    #normalrized_lateral_offset = ((dx>dy)*dx + (dy>dy)*dy)/320
-    #steering_angle = k_p*steering_angle - k_lateral*((dx>dy+100)*(normalrized_lateral_offset) + (dy>dx+100)*(normalrized_lateral_offset))
-    #steering_angle = k_p*steering_angle
-    steering_angle = k_p*steering_angle
-    # 조향각 제한 (-50 ~ 50도)
-    steering_angle = max(min(steering_angle, 50.0), -50.0)
-    rospy.loginfo("angle: %.2f", steering_angle)
-    return steering_angle
+    # 4. 계산된 조향각을 물리적 한계 내로 제한
+    steering_angle = max(min(steering_angle, 100.0), -100.0)
+
+    rospy.loginfo(f"[Cone Control] lat_err: {lateral_err:.2f}, head_err(deg): {math.degrees(heading_err):.2f}, angle: {steering_angle:.2f}")
+
+    return steering_angle, v
+
+### 추가: 라바콘 탈출 후 안정화 제어 함수 (Stabilizer) ###
+def stabilizer_control():
+    """
+    라바콘 구간을 탈출한 직후, 잠시 동안 저속으로 주행하여 차량을 안정시키는 함수.
+    """
+    global is_stabilizing, stabilizer_start_time, STABILIZER_DURATION, STABILIZER_SPEED
+    global STABILIZER_KP, STABILIZER_KD, prev_angle
+
+    # 안정화 시간이 지났는지 확인
+    if time.time() - stabilizer_start_time > STABILIZER_DURATION:
+        is_stabilizing = False
+        rospy.loginfo("--- 안정화 모드 종료 ---")
+        # 시간이 지나면 일반 차선 주행으로 복귀
+        return calculate_normal_steering()
+    else:
+        # 안정화 시간 동안에는 조향각은 차선 주행 로직을 따르고, 속도는 고정
+        rospy.loginfo(f"--- Stabilizer Mode Active ({time.time() - stabilizer_start_time:.1f}s / {STABILIZER_DURATION}s) ---")
+        
+        # 기본 조향각 계산
+        steering_angle, v = calculate_normal_steering()
+        
+        # 안정화를 위한 조향각 보정
+        if steering_history:
+            # 이전 조향각과의 차이를 이용한 미분 제어
+            angle_diff = steering_angle - prev_angle
+            # 조향각을 부드럽게 보정
+            steering_angle = prev_angle + STABILIZER_KP * (steering_angle - prev_angle) + STABILIZER_KD * angle_diff
+            
+            # 조향각 제한
+            steering_angle = max(min(steering_angle, 30.0), -30.0)
+        
+        # 현재 조향각 저장
+        prev_angle = steering_angle
+        
+        return steering_angle, STABILIZER_SPEED
 
 #=============================================
 # 폴리노미얼 경로 생성 함수
@@ -459,62 +605,78 @@ def lane_change_control(path, current_x, current_y, current_angle, direction):
     steering_angle = direction * abs(base)
     
     # 조향각 제한 (-50 ~ 50도)
-    steering_angle = max(min(steering_angle, 50.0), -50.0)
+    steering_angle = max(min(steering_angle, 100.0), -100.0)
     
     return steering_angle
 
-# #=============================================
-# # 1) 콘 구역 판단 함수 (min_points=2)
-# #=============================================
-# def find_cone_section(ranges,
-#                       y_threshold=7.0,
-#                       min_points=2,
-#                       fov_deg=45):
-#     count = 0
-#     for i, r in enumerate(ranges):
-#         if r <= 0.0 or np.isinf(r):
-#             continue
-#         angle = math.radians(i if i <= 180 else i - 360)
-#         y = r * math.cos(angle)
-#         if 0 < y < y_threshold and abs(math.degrees(angle)) <= fov_deg:
-#             count += 1
-#             if count >= min_points:
-#                 return True
-#     return False
+def kanayama_control():
+    global lane_data, current_lane, is_lane_changing
+    global lane_change_path, lane_change_direction, lane_change_start_time
+    global L, last_left_lane_detected, last_right_lane_detected
+    global left_lane_missing_time, right_lane_missing_time
+    global is_speed_boosted, speed_boost_start_time, has_speed_boosted
+    if lane_data is None:
+        return 0.0, Fix_Speed
 
-# #=============================================
-# # 2) 콘 구역 내 최대 gap 찾기
-# #=============================================
-# def find_cone_gap(ranges,
-#                   y_threshold=7.0,
-#                   x_clip=100.0):
-#     xs = []
-#     for i, r in enumerate(ranges):
-#         if r <= 0.0 or np.isinf(r):
-#             continue
-#         angle = math.radians(i if i <= 180 else i - 360)
-#         y = r * math.cos(angle)
-#         if 0 < y < y_threshold:
-#             x = r * math.sin(angle)
-#             if abs(x) <= x_clip:
-#                 xs.append(x)
-#     if len(xs) < 2:
-#         return 0.0
-#     xs.sort()
-#     max_gap, best_idx = 0.0, 0
-#     for j in range(len(xs)-1):
-#         gap = xs[j+1] - xs[j]
-#         if gap > max_gap:
-#             max_gap, best_idx = gap, j
-#     x_mid = (xs[best_idx] + xs[best_idx+1]) / 2.0
-#     return math.degrees(math.atan2(x_mid, y_threshold/2.0))
+    # 차선 변경 중인 경우
+    if is_lane_changing and lane_change_path:
+        current_time = time.time()
+        
+        # 차선 변경 완료 조건 확인
+        if current_time - lane_change_start_time > LANE_CHANGE_DURATION:
+            is_lane_changing = False
+            lane_change_path = []
+            lane_change_direction = 0
+            rospy.loginfo("차선 변경 완료")
+            # 차선 변경 완료 후 속도 증가 시작 (한 번만)
+            if not has_speed_boosted:
+                is_speed_boosted = True
+                speed_boost_start_time = current_time
+                has_speed_boosted = True
+                rospy.loginfo("속도 증가 시작: 1.2배 속도로 가속")
+                return 0.0, Fix_Speed * 1.2  # 1.2배 속도로 시작
+        else:
+            # 현재 차선 중심점 계산
+            if lane_data.left_x != 130 and lane_data.right_x != -130:
+                current_x = (lane_data.left_x + lane_data.right_x) / 2
+            elif lane_data.left_x != 130:
+                current_x = lane_data.left_x + 75
+            elif lane_data.right_x != -130:
+                current_x = lane_data.right_x - 75
+            else:
+                current_x = BASE_X  # 기본값으로 이미지 중앙 사용
 
+            # 차선 변경 제어
+            steering_angle = lane_change_control(
+                lane_change_path,
+                current_x, BASE_Y,  # 실제 차량 위치 사용
+                math.radians(-(lane_data.left_slope + lane_data.right_slope)/2),
+                lane_change_direction
+            )
+            return steering_angle, Fix_Speed
+
+    # 속도 증가 중인 경우
+    if is_speed_boosted:
+        current_time = time.time()
+        if current_time - speed_boost_start_time > speed_boost_duration:
+            is_speed_boosted = False
+            rospy.loginfo("속도 증가 종료: 정상 속도로 복귀")
+        else:
+            rospy.loginfo("속도 증가 중: %.1f초 남음", speed_boost_duration - (current_time - speed_boost_start_time))
+            # 속도만 증가시키고 조향은 정상적으로 계산
+            steering_angle, _ = calculate_normal_steering()
+            return steering_angle, Fix_Speed * 1.2  # 1.2배 속도 유지
+
+    # 기존의 kanayama_control 로직
+    return calculate_normal_steering()
 
 #=============================================
 # 실질적인 메인 함수 
 #=============================================
 def start():
-    global motor, image, ranges
+    ### 수정: 안정화 관련 전역 변수 사용을 위해 global 선언 추가 ###
+    global motor, image, ranges, lane_data, prev_cone_detected_flag, is_stabilizing, stabilizer_start_time
+    global is_speed_boosted, speed_boost_start_time, has_speed_boosted
     prev_angle = 0.0
     print("Start program --------------")
 
@@ -525,6 +687,7 @@ def start():
     rospy.Subscriber("/usb_cam/image_raw/", Image, usbcam_callback, queue_size=1)
     rospy.Subscriber("/scan", LaserScan, lidar_callback, queue_size=1)
     rospy.Subscriber("lane_info", laneinfo, lane_callback, queue_size=1)
+    rospy.Subscriber("cone_lanes", ConeLanes, conelane_callback, queue_size=1)
     motor = rospy.Publisher('xycar_motor', XycarMotor, queue_size=1)
         
     #=========================================
@@ -535,11 +698,6 @@ def start():
     rospy.wait_for_message("/scan", LaserScan)
     print("Lidar Ready ----------")
     
-    #=========================================
-    # 라이다 스캔정보에 대한 시각화 준비를 합니다.
-    #=========================================
-    plt.ion()
-    plt.show()
     print("Lidar Visualizer Ready ----------")
     
     print("======================================")
@@ -561,17 +719,44 @@ def start():
             # 이미지 표시
             #cv2.imshow("original", display_img)
             #cv2.imshow("gray", cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
+        
+        # ### 추가: 안정화 모드 진입 조건 검사 ###
+        # lane_data가 수신된 이후에만 로직 수행
+        if lane_data is not None:
+            # 라바콘 모드에서 차선 모드로 전환되는 시점을 감지
+            if prev_cone_detected_flag and not lane_data.cone_detected_flag and not is_stabilizing:
+                is_stabilizing = True
+                stabilizer_start_time = time.time()
+                rospy.loginfo("--- 라바콘 구간 탈출! 안정화 모드 시작 ---")
+            
+            # 다음 루프를 위해 현재 라바콘 감지 상태를 저장
+            prev_cone_detected_flag = lane_data.cone_detected_flag
 
         if ranges is not None:            
             angles = np.linspace(0,2*np.pi, len(ranges))+np.pi/2
             x = ranges * np.cos(angles)
             y = ranges * np.sin(angles)
+            
+            # 초기화
+            steering_angle, v = 0.0, Fix_Speed
 
-            lidar_points.set_data(x, y)
-            fig.canvas.draw_idle()
-            plt.pause(0.01)
+            # ### 수정: 제어 로직 분기 처리 (안정화 모드 최우선) ###
+            if is_stabilizing:
+                # 안정화 모드가 활성화된 경우
+                steering_angle, v = stabilizer_control()
+            elif lane_data is not None and lane_data.cone_detected_flag:
+                # 라바콘 플래그가 True이면 라바콘 제어 함수 호출
+                rospy.loginfo("--- Cone Driving Mode ---")
+                steering_angle, v = cone_kanayama_control()
+            elif vehicle_ahead:
+                # 장애물이 감지된 경우 kanayama_control 사용
+                rospy.loginfo("--- Obstacle Avoidance Mode ---")
+                steering_angle, v = kanayama_control()
+            else:
+                # 일반 주행 모드
+                rospy.loginfo("--- Normal Driving Mode ---")
+                steering_angle, v = calculate_normal_steering()
 
-            steering_angle, v = kanayama_control()
             tl_state = detect_traffic_light(image)
             # 신호등 상태 기반 출발/정지 플래그 제어
             if tl_state == 'green':
@@ -579,7 +764,7 @@ def start():
             elif tl_state in ('red', 'yellow'):
                 light_go = False
             # 'none'이면 이전 상태 유지
-            #light_go = True
+            light_go = True #for debug
             #rospy.loginfo(f"[TL] state: {tl_state}, go: {light_go}")
             speed = v if light_go else 0.0
             drive(angle=steering_angle, speed=speed)

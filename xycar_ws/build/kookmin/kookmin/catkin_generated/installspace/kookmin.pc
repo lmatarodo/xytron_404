@@ -1,4 +1,4 @@
-prefix=/home/taeyeong/xytron_404/xycar_ws/install
+prefix=/home/dylan/xytron/xycar_ws/install
 
 Name: kookmin
 Description: Description of kookmin
