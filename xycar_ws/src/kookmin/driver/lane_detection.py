@@ -34,6 +34,14 @@ class LaneDetect:
         transform_matrix = cv2.getPerspectiveTransform(source, destination)
         bird_image = cv2.warpPerspective(image, transform_matrix, (260, 260))
         return bird_image
+    
+    def warpping_for_cone_detection(self, image): #y=−0.55794x+390.00000 #y=0.56522x+33.91304
+        source = np.float32([[161,300], [471,300], [36, 370], [595, 370]])
+        #source = np.float32([[161,300], [471,300], [72, 350], [559, 350]])
+        destination = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
+        transform_matrix = cv2.getPerspectiveTransform(source, destination)
+        bird_image = cv2.warpPerspective(image, transform_matrix, (260, 260))
+        return bird_image
 
     def color_filter(self, image):
         lower = np.array([0, 255, 255]) #수정
@@ -175,28 +183,10 @@ class LaneDetect:
             rospy.logwarn(f"라바콘 감지 중 오류 발생: {str(e)}")
             return False
 
-    def warpping_for_cone_detection(self, image):
-        """라바콘 감지를 위한 더 넓은 전방 시야의 BEV 변환 함수"""
-        img_h, img_w = image.shape[:2] # 원본 이미지 높이, 너비 (480, 640)
-
-        # v0에서 사용된 더 넓은 ROI 좌표 (필요시 튜닝)
-        # 아이디어: 차선 감지보다 y값을 낮춰(위로) 더 먼 곳을, x값 범위를 넓혀 더 넓은 영역을 봄
-        source_cone = np.float32([
-            [100, 260],                  # 좌상 (더 멀리, 더 넓게)
-            [img_w - 100, 260],          # 우상 (더 멀리, 더 넓게)
-            [0, img_h - 100],            # 좌하
-            [img_w, img_h - 100]         # 우하
-        ])
-        
-        destination_cone = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
-        transform_matrix_cone = cv2.getPerspectiveTransform(source_cone, destination_cone)
-        bird_image_cone = cv2.warpPerspective(image, transform_matrix_cone, (260, 260))
-        return bird_image_cone
-
     def process_image(self, img):
         # Step 1: BEV 변환
         warpped_img = self.warpping(img)
-        #warpped_img_cone = self.warpping_for_cone_detection(img)
+        warpped_img_cone = self.warpping_for_cone_detection(img)
 
         # Step 2: Blurring을 통해 노이즈를 제거
         blurred_img = cv2.GaussianBlur(warpped_img, (0, 0), 1)
@@ -207,8 +197,8 @@ class LaneDetect:
         _, binary_img = cv2.threshold(gray_img, 170, 255, cv2.THRESH_BINARY)
 
         # Step 4: 주황색 라바콘 감지
-        cone_detected = self.detect_orange_cone(warpped_img)
-        #cone_detected = self.detect_orange_cone(warpped_img_cone)
+        #cone_detected = self.detect_orange_cone(warpped_img)
+        cone_detected = self.detect_orange_cone(warpped_img_cone)
 
         if cone_detected:
             rospy.loginfo("라바콘 감지됨 (오렌지 픽셀 존재)")

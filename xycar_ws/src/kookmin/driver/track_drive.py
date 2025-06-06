@@ -26,7 +26,6 @@ motor = None  # 모터노드
 motor_msg = XycarMotor()  # 모터 토픽 메시지
 Fix_Speed = 37 #원래 10  # 모터 속도 고정 상수값 
 new_angle = 0  # 모터 조향각 초기값
-new_speed = Fix_Speed  # 모터 속도 초기값
 bridge = CvBridge()  # OpenCV 함수를 사용하기 위한 브릿지 
 lane_data = None  # 차선 정보를 담을 변수
 k_p = Fix_Speed/25
@@ -73,6 +72,13 @@ BASE_Y = 260  # 이미지 하단 y좌표
 
 #콘 레인
 TARGET_Y = 2.75
+
+### 추가: 라바콘 탈출 후 안정화(Stabilizer) 관련 변수 ###
+is_stabilizing = False
+stabilizer_start_time = 0.0
+prev_cone_detected_flag = False
+STABILIZER_DURATION = 5  # 안정화 지속 시간 (초)
+STABILIZER_SPEED = 10       # 안정화 모드 시 고정 속도
 
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
@@ -222,12 +228,12 @@ def drive(angle, speed):
 #=============================================
 # 차선 정보를 기반으로 조향각을 계산하는 함수
 #=============================================
-def kanayama_control():
+def kanayama_control(input_speed):
     global lane_data, current_lane, is_lane_changing
     global lane_change_path, lane_change_direction, lane_change_start_time
     global L
     if lane_data is None:
-        return 0.0, Fix_Speed
+        return 0.0, input_speed
 
     # 차선 변경 중인 경우
     if is_lane_changing and lane_change_path:
@@ -257,7 +263,7 @@ def kanayama_control():
                 math.radians(-(lane_data.left_slope + lane_data.right_slope)/2),
                 lane_change_direction
             )
-            increased_speed = Fix_Speed*1.15
+            increased_speed = input_speed*1.15
             steering_angle = steering_angle*1.1
             return steering_angle, increased_speed
 
@@ -271,12 +277,12 @@ def kanayama_control():
     # 파라미터
     K_y = 0.85
     K_phi = 3.0
-    v_r = Fix_Speed
+    v_r = input_speed
     
     # lateral_err, heading_err 계산 (주신 코드 참고)
     if left_x == 130 and right_x == -130:
         rospy.logwarn("Both lanes lost, skipping control.")
-        return 0.0, Fix_Speed
+        return 0.0, input_speed
     elif left_x == 130:
         lateral_err = -(0.5 - (right_x / 150.0)) * lane_width
         heading_err = right_slope
@@ -318,7 +324,7 @@ def cone_kanayama_control():
     heading_err = target_heading_from_topic
     
     # 2. 카나야마 제어 파라미터 (콘 주행에 맞게 튜닝 가능)
-    K_y = 0.2   # 횡방향 오차에 대한 게인
+    K_y = 0.0   # 횡방향 오차에 대한 게인
     K_phi = 5 # 헤딩 오차에 대한 게인
     v_r = target_cone_speed # 콘 구간 목표 속도
 
@@ -335,6 +341,25 @@ def cone_kanayama_control():
     rospy.loginfo(f"[Cone Control] lat_err: {lateral_err:.2f}, head_err(deg): {math.degrees(heading_err):.2f}, angle: {steering_angle:.2f}")
 
     return steering_angle, v
+
+### 추가: 라바콘 탈출 후 안정화 제어 함수 (Stabilizer) ###
+def stabilizer_control():
+    """
+    라바콘 구간을 탈출한 직후, 잠시 동안 저속으로 주행하여 차량을 안정시키는 함수.
+    """
+    global is_stabilizing, stabilizer_start_time, STABILIZER_DURATION, STABILIZER_SPEED
+
+    # 안정화 시간이 지났는지 확인
+    if time.time() - stabilizer_start_time > STABILIZER_DURATION:
+        is_stabilizing = False
+        rospy.loginfo("--- 안정화 모드 종료 ---")
+        # 시간이 지나면 일반 차선 주행으로 복귀
+        return kanayama_control(STABILIZER_SPEED)
+    else:
+        # 안정화 시간 동안에는 조향각은 차선 주행 로직을 따르고, 속도는 5로 고정
+        rospy.loginfo(f"--- Stabilizer Mode Active ({time.time() - stabilizer_start_time:.1f}s / {STABILIZER_DURATION}s) ---")
+        steering_angle, v = kanayama_control(STABILIZER_SPEED)  # 조향각만 계산하여 사용
+        return steering_angle*Fix_Speed/STABILIZER_SPEED, v
 
 #=============================================
 # 폴리노미얼 경로 생성 함수
@@ -506,7 +531,8 @@ def lane_change_control(path, current_x, current_y, current_angle, direction):
 # 실질적인 메인 함수 
 #=============================================
 def start():
-    global motor, image, ranges
+    ### 수정: 안정화 관련 전역 변수 사용을 위해 global 선언 추가 ###
+    global motor, image, ranges, lane_data, prev_cone_detected_flag, is_stabilizing, stabilizer_start_time
     prev_angle = 0.0
     print("Start program --------------")
 
@@ -554,6 +580,18 @@ def start():
             # 이미지 표시
             #cv2.imshow("original", display_img)
             #cv2.imshow("gray", cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
+        
+        # ### 추가: 안정화 모드 진입 조건 검사 ###
+        # lane_data가 수신된 이후에만 로직 수행
+        if lane_data is not None:
+            # 라바콘 모드에서 차선 모드로 전환되는 시점을 감지
+            if prev_cone_detected_flag and not lane_data.cone_detected_flag and not is_stabilizing:
+                is_stabilizing = True
+                stabilizer_start_time = time.time()
+                rospy.loginfo("--- 라바콘 구간 탈출! 안정화 모드 시작 ---")
+            
+            # 다음 루프를 위해 현재 라바콘 감지 상태를 저장
+            prev_cone_detected_flag = lane_data.cone_detected_flag
 
         if ranges is not None:            
             angles = np.linspace(0,2*np.pi, len(ranges))+np.pi/2
@@ -563,17 +601,22 @@ def start():
             #lidar_points.set_data(x, y)
             #fig.canvas.draw_idle()
             #plt.pause(0.01)
+            
+            # 초기화
+            steering_angle, v = 0.0, Fix_Speed
 
-            # ### 수정: 제어 로직 분기 처리 ###
-            # lane_data가 수신되었는지 먼저 확인
-            if lane_data is not None and lane_data.cone_detected_flag:
+            # ### 수정: 제어 로직 분기 처리 (안정화 모드 최우선) ###
+            if is_stabilizing:
+                # 안정화 모드가 활성화된 경우
+                steering_angle, v = stabilizer_control()
+            elif lane_data is not None and lane_data.cone_detected_flag:
                 # 라바콘 플래그가 True이면 라바콘 제어 함수 호출
                 rospy.loginfo("--- Cone Driving Mode ---")
                 steering_angle, v = cone_kanayama_control()
             else:
-                # 라바콘 플래그가 False이면 일반 차선 주행 함수 호출
+                # 라바콘 플래그가 False이거나 lane_data가 없으면 일반 차선 주행
                 rospy.loginfo("--- Lane Driving Mode ---")
-                steering_angle, v = kanayama_control()
+                steering_angle, v = kanayama_control(Fix_Speed)
 
             tl_state = detect_traffic_light(image)
             # 신호등 상태 기반 출발/정지 플래그 제어
