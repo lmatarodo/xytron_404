@@ -14,7 +14,7 @@
 
 (defclass xycar_msgs::laneinfo
   :super ros::object
-  :slots (_left_x _left_y _left_slope _right_x _right_y _right_slope _lane_number ))
+  :slots (_left_x _left_y _left_slope _right_x _right_y _right_slope _lane_number _cone_detected_flag ))
 
 (defmethod xycar_msgs::laneinfo
   (:init
@@ -26,6 +26,7 @@
     ((:right_y __right_y) 0.0)
     ((:right_slope __right_slope) 0.0)
     ((:lane_number __lane_number) 0)
+    ((:cone_detected_flag __cone_detected_flag) nil)
     )
    (send-super :init)
    (setq _left_x (float __left_x))
@@ -35,6 +36,7 @@
    (setq _right_y (float __right_y))
    (setq _right_slope (float __right_slope))
    (setq _lane_number (round __lane_number))
+   (setq _cone_detected_flag __cone_detected_flag)
    self)
   (:left_x
    (&optional __left_x)
@@ -57,6 +59,9 @@
   (:lane_number
    (&optional __lane_number)
    (if __lane_number (setq _lane_number __lane_number)) _lane_number)
+  (:cone_detected_flag
+   (&optional (__cone_detected_flag :null))
+   (if (not (eq __cone_detected_flag :null)) (setq _cone_detected_flag __cone_detected_flag)) _cone_detected_flag)
   (:serialization-length
    ()
    (+
@@ -74,6 +79,8 @@
     4
     ;; int32 _lane_number
     4
+    ;; bool _cone_detected_flag
+    1
     ))
   (:serialize
    (&optional strm)
@@ -93,6 +100,8 @@
        (sys::poke _right_slope (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
      ;; int32 _lane_number
        (write-long _lane_number s)
+     ;; bool _cone_detected_flag
+       (if _cone_detected_flag (write-byte -1 s) (write-byte 0 s))
      ;;
      (if (null strm) (get-output-stream-string s))))
   (:deserialize
@@ -111,11 +120,13 @@
      (setq _right_slope (sys::peek buf ptr- :float)) (incf ptr- 4)
    ;; int32 _lane_number
      (setq _lane_number (sys::peek buf ptr- :integer)) (incf ptr- 4)
+   ;; bool _cone_detected_flag
+     (setq _cone_detected_flag (not (= 0 (sys::peek buf ptr- :char)))) (incf ptr- 1)
    ;;
    self)
   )
 
-(setf (get xycar_msgs::laneinfo :md5sum-) "6d0d242a09af36c4e0ef3fbf421ba402")
+(setf (get xycar_msgs::laneinfo :md5sum-) "80e7564081aa5c4a700b9b80391fcc78")
 (setf (get xycar_msgs::laneinfo :datatype-) "xycar_msgs/laneinfo")
 (setf (get xycar_msgs::laneinfo :definition-)
       "float32 left_x
@@ -125,10 +136,11 @@ float32 right_x
 float32 right_y
 float32 right_slope
 int32 lane_number  # 1: 1차선, 2: 2차선 
+bool cone_detected_flag
 ")
 
 
 
-(provide :xycar_msgs/laneinfo "6d0d242a09af36c4e0ef3fbf421ba402")
+(provide :xycar_msgs/laneinfo "80e7564081aa5c4a700b9b80391fcc78")
 
 

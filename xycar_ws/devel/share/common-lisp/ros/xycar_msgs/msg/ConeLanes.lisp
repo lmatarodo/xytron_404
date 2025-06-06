@@ -46,7 +46,27 @@
     :reader center_path
     :initarg :center_path
     :type (cl:vector geometry_msgs-msg:Point)
-   :initform (cl:make-array 0 :element-type 'geometry_msgs-msg:Point :initial-element (cl:make-instance 'geometry_msgs-msg:Point))))
+   :initform (cl:make-array 0 :element-type 'geometry_msgs-msg:Point :initial-element (cl:make-instance 'geometry_msgs-msg:Point)))
+   (lateral_error
+    :reader lateral_error
+    :initarg :lateral_error
+    :type cl:float
+    :initform 0.0)
+   (target_point_detected
+    :reader target_point_detected
+    :initarg :target_point_detected
+    :type cl:boolean
+    :initform cl:nil)
+   (target_point
+    :reader target_point
+    :initarg :target_point
+    :type geometry_msgs-msg:Point
+    :initform (cl:make-instance 'geometry_msgs-msg:Point))
+   (target_heading
+    :reader target_heading
+    :initarg :target_heading
+    :type cl:float
+    :initform 0.0))
 )
 
 (cl:defclass ConeLanes (<ConeLanes>)
@@ -96,6 +116,26 @@
 (cl:defmethod center_path-val ((m <ConeLanes>))
   (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:center_path-val is deprecated.  Use xycar_msgs-msg:center_path instead.")
   (center_path m))
+
+(cl:ensure-generic-function 'lateral_error-val :lambda-list '(m))
+(cl:defmethod lateral_error-val ((m <ConeLanes>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:lateral_error-val is deprecated.  Use xycar_msgs-msg:lateral_error instead.")
+  (lateral_error m))
+
+(cl:ensure-generic-function 'target_point_detected-val :lambda-list '(m))
+(cl:defmethod target_point_detected-val ((m <ConeLanes>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:target_point_detected-val is deprecated.  Use xycar_msgs-msg:target_point_detected instead.")
+  (target_point_detected m))
+
+(cl:ensure-generic-function 'target_point-val :lambda-list '(m))
+(cl:defmethod target_point-val ((m <ConeLanes>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:target_point-val is deprecated.  Use xycar_msgs-msg:target_point instead.")
+  (target_point m))
+
+(cl:ensure-generic-function 'target_heading-val :lambda-list '(m))
+(cl:defmethod target_heading-val ((m <ConeLanes>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader xycar_msgs-msg:target_heading-val is deprecated.  Use xycar_msgs-msg:target_heading instead.")
+  (target_heading m))
 (cl:defmethod roslisp-msg-protocol:serialize ((msg <ConeLanes>) ostream)
   "Serializes a message object of type '<ConeLanes>"
   (roslisp-msg-protocol:serialize (cl:slot-value msg 'header) ostream)
@@ -128,6 +168,18 @@
     (cl:write-byte (cl:ldb (cl:byte 8 24) __ros_arr_len) ostream))
   (cl:map cl:nil #'(cl:lambda (ele) (roslisp-msg-protocol:serialize ele ostream))
    (cl:slot-value msg 'center_path))
+  (cl:let ((bits (roslisp-utils:encode-single-float-bits (cl:slot-value msg 'lateral_error))))
+    (cl:write-byte (cl:ldb (cl:byte 8 0) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 8) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 16) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 24) bits) ostream))
+  (cl:write-byte (cl:ldb (cl:byte 8 0) (cl:if (cl:slot-value msg 'target_point_detected) 1 0)) ostream)
+  (roslisp-msg-protocol:serialize (cl:slot-value msg 'target_point) ostream)
+  (cl:let ((bits (roslisp-utils:encode-single-float-bits (cl:slot-value msg 'target_heading))))
+    (cl:write-byte (cl:ldb (cl:byte 8 0) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 8) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 16) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 24) bits) ostream))
 )
 (cl:defmethod roslisp-msg-protocol:deserialize ((msg <ConeLanes>) istream)
   "Deserializes a message object of type '<ConeLanes>"
@@ -170,6 +222,20 @@
     (cl:dotimes (i __ros_arr_len)
     (cl:setf (cl:aref vals i) (cl:make-instance 'geometry_msgs-msg:Point))
   (roslisp-msg-protocol:deserialize (cl:aref vals i) istream))))
+    (cl:let ((bits 0))
+      (cl:setf (cl:ldb (cl:byte 8 0) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 8) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 16) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 24) bits) (cl:read-byte istream))
+    (cl:setf (cl:slot-value msg 'lateral_error) (roslisp-utils:decode-single-float-bits bits)))
+    (cl:setf (cl:slot-value msg 'target_point_detected) (cl:not (cl:zerop (cl:read-byte istream))))
+  (roslisp-msg-protocol:deserialize (cl:slot-value msg 'target_point) istream)
+    (cl:let ((bits 0))
+      (cl:setf (cl:ldb (cl:byte 8 0) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 8) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 16) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 24) bits) (cl:read-byte istream))
+    (cl:setf (cl:slot-value msg 'target_heading) (roslisp-utils:decode-single-float-bits bits)))
   msg
 )
 (cl:defmethod roslisp-msg-protocol:ros-datatype ((msg (cl:eql '<ConeLanes>)))
@@ -180,16 +246,16 @@
   "xycar_msgs/ConeLanes")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql '<ConeLanes>)))
   "Returns md5sum for a message object of type '<ConeLanes>"
-  "af8510db732fe4223bfc5f0cf49c6646")
+  "17f723016cb6dd916e265822742d21c5")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql 'ConeLanes)))
   "Returns md5sum for a message object of type 'ConeLanes"
-  "af8510db732fe4223bfc5f0cf49c6646")
+  "17f723016cb6dd916e265822742d21c5")
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql '<ConeLanes>)))
   "Returns full string definition for message of type '<ConeLanes>"
-  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
+  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로 및 제어 정보~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%float32 lateral_error                 # 차량의 횡방향 오차 (중앙 경로의 y=0에 가장 가까운 지점의 x값)~%bool target_point_detected            # 제어 목표점 탐지 성공 여부~%geometry_msgs/Point target_point      # 제어 목표점 좌표 (x, y, z=0)~%float32 target_heading                # 제어 목표점에서의 경로 각도 (radian)~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql 'ConeLanes)))
   "Returns full string definition for message of type 'ConeLanes"
-  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
+  (cl:format cl:nil "# ConeLanes.msg~%~%# 메시지 헤더 (타임스탬프, 프레임 ID 포함)~%std_msgs/Header header~%~%# 왼쪽 차선 감지 정보~%bool left_lane_detected             # 왼쪽 차선 감지 성공 여부~%geometry_msgs/Point[] left_lane_points  # 피팅된 왼쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 left_lane_degree                   # 왼쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 오른쪽 차선 감지 정보~%bool right_lane_detected            # 오른쪽 차선 감지 성공 여부~%geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트~%int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)~%~%# 중앙 주행 경로 및 제어 정보~%geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트~%float32 lateral_error                 # 차량의 횡방향 오차 (중앙 경로의 y=0에 가장 가까운 지점의 x값)~%bool target_point_detected            # 제어 목표점 탐지 성공 여부~%geometry_msgs/Point target_point      # 제어 목표점 좌표 (x, y, z=0)~%float32 target_heading                # 제어 목표점에서의 경로 각도 (radian)~%================================================================================~%MSG: std_msgs/Header~%# Standard metadata for higher-level stamped data types.~%# This is generally used to communicate timestamped data ~%# in a particular coordinate frame.~%# ~%# sequence ID: consecutively increasing ID ~%uint32 seq~%#Two-integer timestamp that is expressed as:~%# * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')~%# * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')~%# time-handling sugar is provided by the client library~%time stamp~%#Frame this data is associated with~%string frame_id~%~%================================================================================~%MSG: geometry_msgs/Point~%# This contains the position of a point in free space~%float64 x~%float64 y~%float64 z~%~%~%"))
 (cl:defmethod roslisp-msg-protocol:serialization-length ((msg <ConeLanes>))
   (cl:+ 0
      (roslisp-msg-protocol:serialization-length (cl:slot-value msg 'header))
@@ -200,6 +266,10 @@
      4 (cl:reduce #'cl:+ (cl:slot-value msg 'right_lane_points) :key #'(cl:lambda (ele) (cl:declare (cl:ignorable ele)) (cl:+ (roslisp-msg-protocol:serialization-length ele))))
      1
      4 (cl:reduce #'cl:+ (cl:slot-value msg 'center_path) :key #'(cl:lambda (ele) (cl:declare (cl:ignorable ele)) (cl:+ (roslisp-msg-protocol:serialization-length ele))))
+     4
+     1
+     (roslisp-msg-protocol:serialization-length (cl:slot-value msg 'target_point))
+     4
 ))
 (cl:defmethod roslisp-msg-protocol:ros-message-to-list ((msg <ConeLanes>))
   "Converts a ROS message object to a list"
@@ -212,4 +282,8 @@
     (cl:cons ':right_lane_points (right_lane_points msg))
     (cl:cons ':right_lane_degree (right_lane_degree msg))
     (cl:cons ':center_path (center_path msg))
+    (cl:cons ':lateral_error (lateral_error msg))
+    (cl:cons ':target_point_detected (target_point_detected msg))
+    (cl:cons ':target_point (target_point msg))
+    (cl:cons ':target_heading (target_heading msg))
 ))

@@ -19,6 +19,7 @@
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Point.h>
 
 namespace xycar_msgs
 {
@@ -35,7 +36,11 @@ struct ConeLanes_
     , right_lane_detected(false)
     , right_lane_points()
     , right_lane_degree(0)
-    , center_path()  {
+    , center_path()
+    , lateral_error(0.0)
+    , target_point_detected(false)
+    , target_point()
+    , target_heading(0.0)  {
     }
   ConeLanes_(const ContainerAllocator& _alloc)
     : header(_alloc)
@@ -45,7 +50,11 @@ struct ConeLanes_
     , right_lane_detected(false)
     , right_lane_points(_alloc)
     , right_lane_degree(0)
-    , center_path(_alloc)  {
+    , center_path(_alloc)
+    , lateral_error(0.0)
+    , target_point_detected(false)
+    , target_point(_alloc)
+    , target_heading(0.0)  {
   (void)_alloc;
     }
 
@@ -74,6 +83,18 @@ struct ConeLanes_
 
    typedef std::vector< ::geometry_msgs::Point_<ContainerAllocator> , typename std::allocator_traits<ContainerAllocator>::template rebind_alloc< ::geometry_msgs::Point_<ContainerAllocator> >> _center_path_type;
   _center_path_type center_path;
+
+   typedef float _lateral_error_type;
+  _lateral_error_type lateral_error;
+
+   typedef uint8_t _target_point_detected_type;
+  _target_point_detected_type target_point_detected;
+
+   typedef  ::geometry_msgs::Point_<ContainerAllocator>  _target_point_type;
+  _target_point_type target_point;
+
+   typedef float _target_heading_type;
+  _target_heading_type target_heading;
 
 
 
@@ -111,7 +132,11 @@ bool operator==(const ::xycar_msgs::ConeLanes_<ContainerAllocator1> & lhs, const
     lhs.right_lane_detected == rhs.right_lane_detected &&
     lhs.right_lane_points == rhs.right_lane_points &&
     lhs.right_lane_degree == rhs.right_lane_degree &&
-    lhs.center_path == rhs.center_path;
+    lhs.center_path == rhs.center_path &&
+    lhs.lateral_error == rhs.lateral_error &&
+    lhs.target_point_detected == rhs.target_point_detected &&
+    lhs.target_point == rhs.target_point &&
+    lhs.target_heading == rhs.target_heading;
 }
 
 template<typename ContainerAllocator1, typename ContainerAllocator2>
@@ -168,12 +193,12 @@ struct MD5Sum< ::xycar_msgs::ConeLanes_<ContainerAllocator> >
 {
   static const char* value()
   {
-    return "af8510db732fe4223bfc5f0cf49c6646";
+    return "17f723016cb6dd916e265822742d21c5";
   }
 
   static const char* value(const ::xycar_msgs::ConeLanes_<ContainerAllocator>&) { return value(); }
-  static const uint64_t static_value1 = 0xaf8510db732fe422ULL;
-  static const uint64_t static_value2 = 0x3bfc5f0cf49c6646ULL;
+  static const uint64_t static_value1 = 0x17f723016cb6dd91ULL;
+  static const uint64_t static_value2 = 0x6e265822742d21c5ULL;
 };
 
 template<class ContainerAllocator>
@@ -207,8 +232,12 @@ struct Definition< ::xycar_msgs::ConeLanes_<ContainerAllocator> >
 "geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트\n"
 "int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)\n"
 "\n"
-"# 중앙 주행 경로\n"
+"# 중앙 주행 경로 및 제어 정보\n"
 "geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트\n"
+"float32 lateral_error                 # 차량의 횡방향 오차 (중앙 경로의 y=0에 가장 가까운 지점의 x값)\n"
+"bool target_point_detected            # 제어 목표점 탐지 성공 여부\n"
+"geometry_msgs/Point target_point      # 제어 목표점 좌표 (x, y, z=0)\n"
+"float32 target_heading                # 제어 목표점에서의 경로 각도 (radian)\n"
 "================================================================================\n"
 "MSG: std_msgs/Header\n"
 "# Standard metadata for higher-level stamped data types.\n"
@@ -257,6 +286,10 @@ namespace serialization
       stream.next(m.right_lane_points);
       stream.next(m.right_lane_degree);
       stream.next(m.center_path);
+      stream.next(m.lateral_error);
+      stream.next(m.target_point_detected);
+      stream.next(m.target_point);
+      stream.next(m.target_heading);
     }
 
     ROS_DECLARE_ALLINONE_SERIALIZER
@@ -340,6 +373,22 @@ struct Printer< ::xycar_msgs::ConeLanes_<ContainerAllocator> >
     }
     if (v.center_path.empty() || false)
       s << "]";
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "lateral_error: ";
+    Printer<float>::stream(s, indent + "  ", v.lateral_error);
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "target_point_detected: ";
+    Printer<uint8_t>::stream(s, indent + "  ", v.target_point_detected);
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "target_point: ";
+    Printer< ::geometry_msgs::Point_<ContainerAllocator> >::stream(s, indent + "  ", v.target_point);
+    if (true || !indent.empty())
+      s << std::endl;
+    s << indent << "target_heading: ";
+    Printer<float>::stream(s, indent + "  ", v.target_heading);
   }
 };
 

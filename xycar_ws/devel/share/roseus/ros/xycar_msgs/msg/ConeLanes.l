@@ -18,7 +18,7 @@
 
 (defclass xycar_msgs::ConeLanes
   :super ros::object
-  :slots (_header _left_lane_detected _left_lane_points _left_lane_degree _right_lane_detected _right_lane_points _right_lane_degree _center_path ))
+  :slots (_header _left_lane_detected _left_lane_points _left_lane_degree _right_lane_detected _right_lane_points _right_lane_degree _center_path _lateral_error _target_point_detected _target_point _target_heading ))
 
 (defmethod xycar_msgs::ConeLanes
   (:init
@@ -31,6 +31,10 @@
     ((:right_lane_points __right_lane_points) ())
     ((:right_lane_degree __right_lane_degree) 0)
     ((:center_path __center_path) ())
+    ((:lateral_error __lateral_error) 0.0)
+    ((:target_point_detected __target_point_detected) nil)
+    ((:target_point __target_point) (instance geometry_msgs::Point :init))
+    ((:target_heading __target_heading) 0.0)
     )
    (send-super :init)
    (setq _header __header)
@@ -41,6 +45,10 @@
    (setq _right_lane_points __right_lane_points)
    (setq _right_lane_degree (round __right_lane_degree))
    (setq _center_path __center_path)
+   (setq _lateral_error (float __lateral_error))
+   (setq _target_point_detected __target_point_detected)
+   (setq _target_point __target_point)
+   (setq _target_heading (float __target_heading))
    self)
   (:header
    (&rest __header)
@@ -82,6 +90,22 @@
      (progn
        (if __center_path (setq _center_path (car __center_path)))
        _center_path)))
+  (:lateral_error
+   (&optional __lateral_error)
+   (if __lateral_error (setq _lateral_error __lateral_error)) _lateral_error)
+  (:target_point_detected
+   (&optional (__target_point_detected :null))
+   (if (not (eq __target_point_detected :null)) (setq _target_point_detected __target_point_detected)) _target_point_detected)
+  (:target_point
+   (&rest __target_point)
+   (if (keywordp (car __target_point))
+       (send* _target_point __target_point)
+     (progn
+       (if __target_point (setq _target_point (car __target_point)))
+       _target_point)))
+  (:target_heading
+   (&optional __target_heading)
+   (if __target_heading (setq _target_heading __target_heading)) _target_heading)
   (:serialization-length
    ()
    (+
@@ -101,6 +125,14 @@
     1
     ;; geometry_msgs/Point[] _center_path
     (apply #'+ (send-all _center_path :serialization-length)) 4
+    ;; float32 _lateral_error
+    4
+    ;; bool _target_point_detected
+    1
+    ;; geometry_msgs/Point _target_point
+    (send _target_point :serialization-length)
+    ;; float32 _target_heading
+    4
     ))
   (:serialize
    (&optional strm)
@@ -131,6 +163,14 @@
      (dolist (elem _center_path)
        (send elem :serialize s)
        )
+     ;; float32 _lateral_error
+       (sys::poke _lateral_error (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
+     ;; bool _target_point_detected
+       (if _target_point_detected (write-byte -1 s) (write-byte 0 s))
+     ;; geometry_msgs/Point _target_point
+       (send _target_point :serialize s)
+     ;; float32 _target_heading
+       (sys::poke _target_heading (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
      ;;
      (if (null strm) (get-output-stream-string s))))
   (:deserialize
@@ -168,11 +208,19 @@
      (dolist (elem- _center_path)
      (send elem- :deserialize buf ptr-) (incf ptr- (send elem- :serialization-length))
      ))
+   ;; float32 _lateral_error
+     (setq _lateral_error (sys::peek buf ptr- :float)) (incf ptr- 4)
+   ;; bool _target_point_detected
+     (setq _target_point_detected (not (= 0 (sys::peek buf ptr- :char)))) (incf ptr- 1)
+   ;; geometry_msgs/Point _target_point
+     (send _target_point :deserialize buf ptr-) (incf ptr- (send _target_point :serialization-length))
+   ;; float32 _target_heading
+     (setq _target_heading (sys::peek buf ptr- :float)) (incf ptr- 4)
    ;;
    self)
   )
 
-(setf (get xycar_msgs::ConeLanes :md5sum-) "af8510db732fe4223bfc5f0cf49c6646")
+(setf (get xycar_msgs::ConeLanes :md5sum-) "17f723016cb6dd916e265822742d21c5")
 (setf (get xycar_msgs::ConeLanes :datatype-) "xycar_msgs/ConeLanes")
 (setf (get xycar_msgs::ConeLanes :definition-)
       "# ConeLanes.msg
@@ -190,8 +238,12 @@ bool right_lane_detected            # 오른쪽 차선 감지 성공 여부
 geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트
 int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)
 
-# 중앙 주행 경로
+# 중앙 주행 경로 및 제어 정보
 geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트
+float32 lateral_error                 # 차량의 횡방향 오차 (중앙 경로의 y=0에 가장 가까운 지점의 x값)
+bool target_point_detected            # 제어 목표점 탐지 성공 여부
+geometry_msgs/Point target_point      # 제어 목표점 좌표 (x, y, z=0)
+float32 target_heading                # 제어 목표점에서의 경로 각도 (radian)
 ================================================================================
 MSG: std_msgs/Header
 # Standard metadata for higher-level stamped data types.
@@ -219,6 +271,6 @@ float64 z
 
 
 
-(provide :xycar_msgs/ConeLanes "af8510db732fe4223bfc5f0cf49c6646")
+(provide :xycar_msgs/ConeLanes "17f723016cb6dd916e265822742d21c5")
 
 

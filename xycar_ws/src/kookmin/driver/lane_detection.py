@@ -66,10 +66,12 @@ class LaneDetect:
         for w in range(nwindows):
             win_y_low = binary_warped.shape[0] - (w + 1) * window_height
             win_y_high = binary_warped.shape[0] - w * window_height
-            win_xleft_low = left_current - margin
-            win_xleft_high = left_current + margin
-            win_xright_low = right_current - margin
-            win_xright_high = right_current + margin
+            
+            # 윈도우 좌표를 이미지 범위 내로 제한
+            win_xleft_low = max(0, left_current - margin)
+            win_xleft_high = min(binary_warped.shape[1] - 1, left_current + margin)
+            win_xright_low = max(0, right_current - margin)
+            win_xright_high = min(binary_warped.shape[1] - 1, right_current + margin)
 
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2)
             cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2)
@@ -158,38 +160,65 @@ class LaneDetect:
             rospy.logwarn(f"차선 색상 감지 중 오류 발생: {str(e)}")
             return 0  # 오류 발생 시 0 반환
 
+    def detect_orange_cone(self, image):
+        """버드아이뷰 이미지에서 주황색 라바콘을 감지"""
+        try:
+            # HSV 색상 공간으로 변환
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            lower_orange = np.array([5, 100, 100])
+            upper_orange = np.array([20, 255, 255])
+            mask = cv2.inRange(hsv, lower_orange, upper_orange)
+            
+            # 오렌지 픽셀이 하나라도 있으면 라바콘이 있다고 판단
+            return np.any(mask > 0)
+        except Exception as e:
+            rospy.logwarn(f"라바콘 감지 중 오류 발생: {str(e)}")
+            return False
+
+    def warpping_for_cone_detection(self, image):
+        """라바콘 감지를 위한 더 넓은 전방 시야의 BEV 변환 함수"""
+        img_h, img_w = image.shape[:2] # 원본 이미지 높이, 너비 (480, 640)
+
+        # v0에서 사용된 더 넓은 ROI 좌표 (필요시 튜닝)
+        # 아이디어: 차선 감지보다 y값을 낮춰(위로) 더 먼 곳을, x값 범위를 넓혀 더 넓은 영역을 봄
+        source_cone = np.float32([
+            [100, 260],                  # 좌상 (더 멀리, 더 넓게)
+            [img_w - 100, 260],          # 우상 (더 멀리, 더 넓게)
+            [0, img_h - 100],            # 좌하
+            [img_w, img_h - 100]         # 우하
+        ])
+        
+        destination_cone = np.float32([[0, 0], [260, 0], [0, 260], [260, 260]])
+        transform_matrix_cone = cv2.getPerspectiveTransform(source_cone, destination_cone)
+        bird_image_cone = cv2.warpPerspective(image, transform_matrix_cone, (260, 260))
+        return bird_image_cone
+
     def process_image(self, img):
         # Step 1: BEV 변환
         warpped_img = self.warpping(img)
+        #warpped_img_cone = self.warpping_for_cone_detection(img)
 
         # Step 2: Blurring을 통해 노이즈를 제거
         blurred_img = cv2.GaussianBlur(warpped_img, (0, 0), 1)
 
-        # Step 3: 색상 필터링 및 이진화
+        # Step 3: 색상 필터링 및 이진화 (차선용)
         filtered_img = self.color_filter(blurred_img)
         gray_img = cv2.cvtColor(filtered_img, cv2.COLOR_BGR2GRAY)
         _, binary_img = cv2.threshold(gray_img, 170, 255, cv2.THRESH_BINARY)
 
-        # Step 4: 히스토그램
+        # Step 4: 주황색 라바콘 감지
+        cone_detected = self.detect_orange_cone(warpped_img)
+        #cone_detected = self.detect_orange_cone(warpped_img_cone)
+
+        if cone_detected:
+            rospy.loginfo("라바콘 감지됨 (오렌지 픽셀 존재)")
+
         left_base, right_base, hist = self.plothistogram(binary_img)
-
-        # Step 5: 슬라이딩 윈도우
         draw_info, out_img = self.slide_window_search(binary_img, left_base, right_base)
-
-        # Step 6: 차선 색상 감지
-        lane_number = self.detect_lane_color(warpped_img, draw_info['left_fitx'][-1], draw_info['right_fitx'][-1])
         
-        # 차선 번호 출력
-        if lane_number == 1:
-            rospy.loginfo("현재 1차선 주행 중")
-        elif lane_number == 2:
-            rospy.loginfo("현재 2차선 주행 중")
-        else:
-            rospy.loginfo("차선 감지 불확실")
-
-        # Step 7: ROS 메시지 생성 및 발행
+        # ROS 메시지 생성
         pub_msg = laneinfo()
-
+        
         # 왼쪽 차선 정보
         pub_msg.left_x = 130.0 - np.float32(draw_info['left_fitx'][-1])
         pub_msg.left_y = np.float32(draw_info['ploty'][-1])
@@ -203,7 +232,8 @@ class LaneDetect:
         pub_msg.right_slope = np.float32(np.arctan(slope_right))
 
         # 차선 번호 설정
-        pub_msg.lane_number = lane_number
+        pub_msg.lane_number = self.detect_lane_color(warpped_img, draw_info['left_fitx'][-1], draw_info['right_fitx'][-1])
+        pub_msg.cone_detected_flag = cone_detected
 
         # 이미지 크기 조절
         display_size = (640, 480)
@@ -216,12 +246,8 @@ class LaneDetect:
         out_resized = cv2.resize(out_img, (260, 260))
 
         # 디버깅용 이미지 표시
-        cv2.imshow("raw_img", img_resized)
+        #cv2.imshow("raw_img", img_resized)
         #cv2.imshow("bird_img", warpped_resized)
-        #cv2.imshow('blur_img', blurred_resized)
-        #cv2.imshow("filter_img", filtered_resized)
-        #cv2.imshow("gray_img", gray_resized)
-        #cv2.imshow("binary_img", binary_resized)
         cv2.imshow("result_img", out_resized)
         cv2.waitKey(1)
         return pub_msg

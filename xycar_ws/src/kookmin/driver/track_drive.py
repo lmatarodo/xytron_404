@@ -14,7 +14,7 @@ from xycar_msgs.msg import XycarMotor
 from xycar_msgs.msg import laneinfo
 from cv_bridge import CvBridge
 from sensor_msgs.msg import LaserScan
-from xycar_msgs.msg import ConeLanes
+from xycar_msgs.msg import ConeLanes # ConeLanes 메시지 import 추가
 import matplotlib.pyplot as plt
 
 #=============================================
@@ -34,6 +34,15 @@ k_para = 20
 k_lateral = 5
 light_go = False  # ← 초록불 인식 후 출발 유지
 L = 0.5
+target_cone_speed = 10
+
+### 추가: 라바콘 경로 및 제어 정보 저장을 위한 전역 변수 ###
+cone_path_data = None
+lateral_error_from_topic = 0.0
+target_point_detected = False
+target_point_from_topic = None
+target_heading_from_topic = 0.0
+###
 
 #차량 감지 관련
 vehicle_ahead = False
@@ -62,14 +71,17 @@ IMAGE_HEIGHT = 260  # 이미지 높이
 BASE_X = 130  # 이미지 중앙 x좌표
 BASE_Y = 260  # 이미지 하단 y좌표
 
+#콘 레인
+TARGET_Y = 2.75
+
 #=============================================
 # 라이다 스캔정보로 그림을 그리기 위한 변수
 #=============================================
-fig, ax = plt.subplots(figsize=(8, 8))
-ax.set_xlim(-120, 120)
-ax.set_ylim(-120, 120)
-ax.set_aspect('equal')
-lidar_points, = ax.plot([], [], 'bo')
+#fig, ax = plt.subplots(figsize=(8, 8))
+#ax.set_xlim(-120, 120)
+#ax.set_ylim(-120, 120)
+#ax.set_aspect('equal')
+#lidar_points, = ax.plot([], [], 'bo')
 
 #=============================================
 # 콜백함수 - 카메라 토픽을 처리하는 콜백함수
@@ -123,7 +135,7 @@ def lane_callback(data):
         current_lane = data.lane_number
 
     # 차선 변경 조건
-    if not is_lane_changing and vehicle_ahead:
+    if not is_lane_changing and vehicle_ahead and not data.cone_detected_flag: # ### 수정: 콘 감지 시에는 차선 변경 안 함 ###
         is_lane_changing = True
         lane_change_start_time = current_time
         last_lane_change_time = current_time
@@ -146,6 +158,25 @@ def lane_callback(data):
         )
 
         rospy.loginfo(f"차선 변경 시작: {current_lane} → {target_lane}")
+
+#=============================================
+# 콜백함수 - 라바콘 경로 토픽을 받아서 처리하는 콜백함수 (### 수정됨 ###)
+#=============================================
+def conelane_callback(data):
+    global cone_path_data, lateral_error_from_topic, target_point_detected
+    global target_point_from_topic, target_heading_from_topic
+
+    # 중앙 경로 저장
+    if data.center_path:
+        cone_path_data = data.center_path
+    else:
+        cone_path_data = None
+
+    # 제어에 직접 사용할 값들을 토픽에서 바로 받아 전역 변수에 저장
+    lateral_error_from_topic = data.lateral_error
+    target_point_detected = data.target_point_detected
+    target_heading_from_topic = data.target_heading if data.target_point_detected else 0.0
+    target_point_from_topic = data.target_point if data.target_point_detected else None
 
 #=============================================
 # 신호등 검출 함수
@@ -269,34 +300,41 @@ def kanayama_control():
 
     return steering_angle, v
 
+#=============================================
+# 라바콘 경로를 따라가는 카나야마 제어 함수 (### 수정 및 통합됨 ###)
+#=============================================
+def cone_kanayama_control():
+    global L, target_point_detected, lateral_error_from_topic, target_heading_from_topic
 
-def calculate_steering_angle():
-    if lane_data is None:
-        return 0.0
+    # 라바콘 감지 노드에서 목표점을 감지했는지 확인
+    if not target_point_detected:
+        rospy.logwarn("Target point not detected by cone perception node. Slowing down.")
+        return 0.0, target_cone_speed / 2 # 안전을 위해 감속 및 직진
+
+    # 1. 제어 오차 값들을 토픽에서 직접 사용
+    # lateral_error: y=0 근방에서의 차량 중심과 경로 중심 사이의 x축 거리
+    # heading_error: 목표 지점에서의 경로 방향 (차량 전방 y축 기준 radian 값)
+    lateral_err = lateral_error_from_topic
+    heading_err = target_heading_from_topic
     
-    # 왼쪽과 오른쪽 차선의 기울기를 이용하여 조향각 계산
-    left_slope = lane_data.left_slope
-    right_slope = lane_data.right_slope
+    # 2. 카나야마 제어 파라미터 (콘 주행에 맞게 튜닝 가능)
+    K_y = 0.2   # 횡방향 오차에 대한 게인
+    K_phi = 5 # 헤딩 오차에 대한 게인
+    v_r = target_cone_speed # 콘 구간 목표 속도
+
+    # 3. 각속도(w) 및 조향각(delta) 계산
+    v = v_r * math.cos(heading_err)
+    w = v_r * (K_y * lateral_err + K_phi * math.sin(heading_err))
     
-    # 두 차선의 기울기 평균을 사용
-    avg_slope = (left_slope + right_slope) / 2.0
+    delta = math.atan2(w * L, v)
+    steering_angle = math.degrees(delta)
     
-    # 기울기를 조향각으로 변환 (라디안 -> 각도)
-    steering_angle = -1*math.degrees(avg_slope)
-    
-    # 조향각 계산
-    #dx = lane_data.left_x
-    #dy = -lane_data.right_x
-    #normalized_para_angle = -((steering_angle>0)-(steering_angle<0))*(steering_angle/50)**2
-    #steering_angle = steering_angle + math.atan(x)
-    #normalrized_lateral_offset = ((dx>dy)*dx + (dy>dy)*dy)/320
-    #steering_angle = k_p*steering_angle - k_lateral*((dx>dy+100)*(normalrized_lateral_offset) + (dy>dx+100)*(normalrized_lateral_offset))
-    #steering_angle = k_p*steering_angle
-    steering_angle = k_p*steering_angle
-    # 조향각 제한 (-50 ~ 50도)
-    steering_angle = max(min(steering_angle, 50.0), -50.0)
-    rospy.loginfo("angle: %.2f", steering_angle)
-    return steering_angle
+    # 4. 계산된 조향각을 물리적 한계 내로 제한
+    steering_angle = max(min(steering_angle, 100.0), -100.0)
+
+    rospy.loginfo(f"[Cone Control] lat_err: {lateral_err:.2f}, head_err(deg): {math.degrees(heading_err):.2f}, angle: {steering_angle:.2f}")
+
+    return steering_angle, v
 
 #=============================================
 # 폴리노미얼 경로 생성 함수
@@ -460,56 +498,9 @@ def lane_change_control(path, current_x, current_y, current_angle, direction):
     steering_angle = direction * abs(base)
     
     # 조향각 제한 (-50 ~ 50도)
-    steering_angle = max(min(steering_angle, 50.0), -50.0)
+    steering_angle = max(min(steering_angle, 100.0), -100.0)
     
     return steering_angle
-
-# #=============================================
-# # 1) 콘 구역 판단 함수 (min_points=2)
-# #=============================================
-# def find_cone_section(ranges,
-#                       y_threshold=7.0,
-#                       min_points=2,
-#                       fov_deg=45):
-#     count = 0
-#     for i, r in enumerate(ranges):
-#         if r <= 0.0 or np.isinf(r):
-#             continue
-#         angle = math.radians(i if i <= 180 else i - 360)
-#         y = r * math.cos(angle)
-#         if 0 < y < y_threshold and abs(math.degrees(angle)) <= fov_deg:
-#             count += 1
-#             if count >= min_points:
-#                 return True
-#     return False
-
-# #=============================================
-# # 2) 콘 구역 내 최대 gap 찾기
-# #=============================================
-# def find_cone_gap(ranges,
-#                   y_threshold=7.0,
-#                   x_clip=100.0):
-#     xs = []
-#     for i, r in enumerate(ranges):
-#         if r <= 0.0 or np.isinf(r):
-#             continue
-#         angle = math.radians(i if i <= 180 else i - 360)
-#         y = r * math.cos(angle)
-#         if 0 < y < y_threshold:
-#             x = r * math.sin(angle)
-#             if abs(x) <= x_clip:
-#                 xs.append(x)
-#     if len(xs) < 2:
-#         return 0.0
-#     xs.sort()
-#     max_gap, best_idx = 0.0, 0
-#     for j in range(len(xs)-1):
-#         gap = xs[j+1] - xs[j]
-#         if gap > max_gap:
-#             max_gap, best_idx = gap, j
-#     x_mid = (xs[best_idx] + xs[best_idx+1]) / 2.0
-#     return math.degrees(math.atan2(x_mid, y_threshold/2.0))
-
 
 #=============================================
 # 실질적인 메인 함수 
@@ -526,6 +517,7 @@ def start():
     rospy.Subscriber("/usb_cam/image_raw/", Image, usbcam_callback, queue_size=1)
     rospy.Subscriber("/scan", LaserScan, lidar_callback, queue_size=1)
     rospy.Subscriber("lane_info", laneinfo, lane_callback, queue_size=1)
+    rospy.Subscriber("cone_lanes", ConeLanes, conelane_callback, queue_size=1) # ### 수정: "cone_lanes" 토픽 구독 ###
     motor = rospy.Publisher('xycar_motor', XycarMotor, queue_size=1)
         
     #=========================================
@@ -539,8 +531,8 @@ def start():
     #=========================================
     # 라이다 스캔정보에 대한 시각화 준비를 합니다.
     #=========================================
-    plt.ion()
-    plt.show()
+    #plt.ion()
+    #plt.show()
     print("Lidar Visualizer Ready ----------")
     
     print("======================================")
@@ -568,11 +560,21 @@ def start():
             x = ranges * np.cos(angles)
             y = ranges * np.sin(angles)
 
-            lidar_points.set_data(x, y)
-            fig.canvas.draw_idle()
-            plt.pause(0.01)
+            #lidar_points.set_data(x, y)
+            #fig.canvas.draw_idle()
+            #plt.pause(0.01)
 
-            steering_angle, v = kanayama_control()
+            # ### 수정: 제어 로직 분기 처리 ###
+            # lane_data가 수신되었는지 먼저 확인
+            if lane_data is not None and lane_data.cone_detected_flag:
+                # 라바콘 플래그가 True이면 라바콘 제어 함수 호출
+                rospy.loginfo("--- Cone Driving Mode ---")
+                steering_angle, v = cone_kanayama_control()
+            else:
+                # 라바콘 플래그가 False이면 일반 차선 주행 함수 호출
+                rospy.loginfo("--- Lane Driving Mode ---")
+                steering_angle, v = kanayama_control()
+
             tl_state = detect_traffic_light(image)
             # 신호등 상태 기반 출발/정지 플래그 제어
             if tl_state == 'green':
@@ -580,7 +582,7 @@ def start():
             elif tl_state in ('red', 'yellow'):
                 light_go = False
             # 'none'이면 이전 상태 유지
-            #light_go = True
+            light_go = True #for debug
             #rospy.loginfo(f"[TL] state: {tl_state}, go: {light_go}")
             speed = v if light_go else 0.0
             drive(angle=steering_angle, speed=speed)

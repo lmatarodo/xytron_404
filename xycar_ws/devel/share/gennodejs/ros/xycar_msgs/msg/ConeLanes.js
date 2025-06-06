@@ -11,8 +11,8 @@ const _deserializer = _ros_msg_utils.Deserialize;
 const _arrayDeserializer = _deserializer.Array;
 const _finder = _ros_msg_utils.Find;
 const _getByteLength = _ros_msg_utils.getByteLength;
-let geometry_msgs = _finder('geometry_msgs');
 let std_msgs = _finder('std_msgs');
+let geometry_msgs = _finder('geometry_msgs');
 
 //-----------------------------------------------------------
 
@@ -28,6 +28,10 @@ class ConeLanes {
       this.right_lane_points = null;
       this.right_lane_degree = null;
       this.center_path = null;
+      this.lateral_error = null;
+      this.target_point_detected = null;
+      this.target_point = null;
+      this.target_heading = null;
     }
     else {
       if (initObj.hasOwnProperty('header')) {
@@ -78,6 +82,30 @@ class ConeLanes {
       else {
         this.center_path = [];
       }
+      if (initObj.hasOwnProperty('lateral_error')) {
+        this.lateral_error = initObj.lateral_error
+      }
+      else {
+        this.lateral_error = 0.0;
+      }
+      if (initObj.hasOwnProperty('target_point_detected')) {
+        this.target_point_detected = initObj.target_point_detected
+      }
+      else {
+        this.target_point_detected = false;
+      }
+      if (initObj.hasOwnProperty('target_point')) {
+        this.target_point = initObj.target_point
+      }
+      else {
+        this.target_point = new geometry_msgs.msg.Point();
+      }
+      if (initObj.hasOwnProperty('target_heading')) {
+        this.target_heading = initObj.target_heading
+      }
+      else {
+        this.target_heading = 0.0;
+      }
     }
   }
 
@@ -111,6 +139,14 @@ class ConeLanes {
     obj.center_path.forEach((val) => {
       bufferOffset = geometry_msgs.msg.Point.serialize(val, buffer, bufferOffset);
     });
+    // Serialize message field [lateral_error]
+    bufferOffset = _serializer.float32(obj.lateral_error, buffer, bufferOffset);
+    // Serialize message field [target_point_detected]
+    bufferOffset = _serializer.bool(obj.target_point_detected, buffer, bufferOffset);
+    // Serialize message field [target_point]
+    bufferOffset = geometry_msgs.msg.Point.serialize(obj.target_point, buffer, bufferOffset);
+    // Serialize message field [target_heading]
+    bufferOffset = _serializer.float32(obj.target_heading, buffer, bufferOffset);
     return bufferOffset;
   }
 
@@ -149,6 +185,14 @@ class ConeLanes {
     for (let i = 0; i < len; ++i) {
       data.center_path[i] = geometry_msgs.msg.Point.deserialize(buffer, bufferOffset)
     }
+    // Deserialize message field [lateral_error]
+    data.lateral_error = _deserializer.float32(buffer, bufferOffset);
+    // Deserialize message field [target_point_detected]
+    data.target_point_detected = _deserializer.bool(buffer, bufferOffset);
+    // Deserialize message field [target_point]
+    data.target_point = geometry_msgs.msg.Point.deserialize(buffer, bufferOffset);
+    // Deserialize message field [target_heading]
+    data.target_heading = _deserializer.float32(buffer, bufferOffset);
     return data;
   }
 
@@ -158,7 +202,7 @@ class ConeLanes {
     length += 24 * object.left_lane_points.length;
     length += 24 * object.right_lane_points.length;
     length += 24 * object.center_path.length;
-    return length + 16;
+    return length + 49;
   }
 
   static datatype() {
@@ -168,7 +212,7 @@ class ConeLanes {
 
   static md5sum() {
     //Returns md5sum for a message object
-    return 'af8510db732fe4223bfc5f0cf49c6646';
+    return '17f723016cb6dd916e265822742d21c5';
   }
 
   static messageDefinition() {
@@ -189,8 +233,12 @@ class ConeLanes {
     geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트
     int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)
     
-    # 중앙 주행 경로
+    # 중앙 주행 경로 및 제어 정보
     geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트
+    float32 lateral_error                 # 차량의 횡방향 오차 (중앙 경로의 y=0에 가장 가까운 지점의 x값)
+    bool target_point_detected            # 제어 목표점 탐지 성공 여부
+    geometry_msgs/Point target_point      # 제어 목표점 좌표 (x, y, z=0)
+    float32 target_heading                # 제어 목표점에서의 경로 각도 (radian)
     ================================================================================
     MSG: std_msgs/Header
     # Standard metadata for higher-level stamped data types.
@@ -286,6 +334,34 @@ class ConeLanes {
     }
     else {
       resolved.center_path = []
+    }
+
+    if (msg.lateral_error !== undefined) {
+      resolved.lateral_error = msg.lateral_error;
+    }
+    else {
+      resolved.lateral_error = 0.0
+    }
+
+    if (msg.target_point_detected !== undefined) {
+      resolved.target_point_detected = msg.target_point_detected;
+    }
+    else {
+      resolved.target_point_detected = false
+    }
+
+    if (msg.target_point !== undefined) {
+      resolved.target_point = geometry_msgs.msg.Point.Resolve(msg.target_point)
+    }
+    else {
+      resolved.target_point = new geometry_msgs.msg.Point()
+    }
+
+    if (msg.target_heading !== undefined) {
+      resolved.target_heading = msg.target_heading;
+    }
+    else {
+      resolved.target_heading = 0.0
     }
 
     return resolved;

@@ -15,4 +15,12 @@
           RIGHT_LANE_DEGREE
           CENTER_PATH-VAL
           CENTER_PATH
+          LATERAL_ERROR-VAL
+          LATERAL_ERROR
+          TARGET_POINT_DETECTED-VAL
+          TARGET_POINT_DETECTED
+          TARGET_POINT-VAL
+          TARGET_POINT
+          TARGET_HEADING-VAL
+          TARGET_HEADING
 ))

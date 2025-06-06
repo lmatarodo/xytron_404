@@ -10,7 +10,7 @@ import geometry_msgs.msg
 import std_msgs.msg
 
 class ConeLanes(genpy.Message):
-  _md5sum = "af8510db732fe4223bfc5f0cf49c6646"
+  _md5sum = "17f723016cb6dd916e265822742d21c5"
   _type = "xycar_msgs/ConeLanes"
   _has_header = True  # flag to mark the presence of a Header object
   _full_text = """# ConeLanes.msg
@@ -28,8 +28,12 @@ bool right_lane_detected            # 오른쪽 차선 감지 성공 여부
 geometry_msgs/Point[] right_lane_points # 피팅된 오른쪽 차선의 샘플링 포인트 (x, y, z=0) 리스트
 int8 right_lane_degree                  # 오른쪽 차선 피팅에 사용된 다항식 차수 (0이면 피팅 안됨 또는 실패)
 
-# 중앙 주행 경로
+# 중앙 주행 경로 및 제어 정보
 geometry_msgs/Point[] center_path       # 계산된 주행 중앙 경로 포인트 (x, y, z=0) 리스트
+float32 lateral_error                 # 차량의 횡방향 오차 (중앙 경로의 y=0에 가장 가까운 지점의 x값)
+bool target_point_detected            # 제어 목표점 탐지 성공 여부
+geometry_msgs/Point target_point      # 제어 목표점 좌표 (x, y, z=0)
+float32 target_heading                # 제어 목표점에서의 경로 각도 (radian)
 ================================================================================
 MSG: std_msgs/Header
 # Standard metadata for higher-level stamped data types.
@@ -53,8 +57,8 @@ float64 x
 float64 y
 float64 z
 """
-  __slots__ = ['header','left_lane_detected','left_lane_points','left_lane_degree','right_lane_detected','right_lane_points','right_lane_degree','center_path']
-  _slot_types = ['std_msgs/Header','bool','geometry_msgs/Point[]','int8','bool','geometry_msgs/Point[]','int8','geometry_msgs/Point[]']
+  __slots__ = ['header','left_lane_detected','left_lane_points','left_lane_degree','right_lane_detected','right_lane_points','right_lane_degree','center_path','lateral_error','target_point_detected','target_point','target_heading']
+  _slot_types = ['std_msgs/Header','bool','geometry_msgs/Point[]','int8','bool','geometry_msgs/Point[]','int8','geometry_msgs/Point[]','float32','bool','geometry_msgs/Point','float32']
 
   def __init__(self, *args, **kwds):
     """
@@ -64,7 +68,7 @@ float64 z
     changes.  You cannot mix in-order arguments and keyword arguments.
 
     The available fields are:
-       header,left_lane_detected,left_lane_points,left_lane_degree,right_lane_detected,right_lane_points,right_lane_degree,center_path
+       header,left_lane_detected,left_lane_points,left_lane_degree,right_lane_detected,right_lane_points,right_lane_degree,center_path,lateral_error,target_point_detected,target_point,target_heading
 
     :param args: complete set of field values, in .msg order
     :param kwds: use keyword arguments corresponding to message field names
@@ -89,6 +93,14 @@ float64 z
         self.right_lane_degree = 0
       if self.center_path is None:
         self.center_path = []
+      if self.lateral_error is None:
+        self.lateral_error = 0.
+      if self.target_point_detected is None:
+        self.target_point_detected = False
+      if self.target_point is None:
+        self.target_point = geometry_msgs.msg.Point()
+      if self.target_heading is None:
+        self.target_heading = 0.
     else:
       self.header = std_msgs.msg.Header()
       self.left_lane_detected = False
@@ -98,6 +110,10 @@ float64 z
       self.right_lane_points = []
       self.right_lane_degree = 0
       self.center_path = []
+      self.lateral_error = 0.
+      self.target_point_detected = False
+      self.target_point = geometry_msgs.msg.Point()
+      self.target_heading = 0.
 
   def _get_types(self):
     """
@@ -140,6 +156,8 @@ float64 z
       for val1 in self.center_path:
         _x = val1
         buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
+      _x = self
+      buff.write(_get_struct_fB3df().pack(_x.lateral_error, _x.target_point_detected, _x.target_point.x, _x.target_point.y, _x.target_point.z, _x.target_heading))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -159,6 +177,8 @@ float64 z
         self.right_lane_points = None
       if self.center_path is None:
         self.center_path = None
+      if self.target_point is None:
+        self.target_point = geometry_msgs.msg.Point()
       end = 0
       _x = self
       start = end
@@ -218,6 +238,11 @@ float64 z
         end += 24
         (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
         self.center_path.append(val1)
+      _x = self
+      start = end
+      end += 33
+      (_x.lateral_error, _x.target_point_detected, _x.target_point.x, _x.target_point.y, _x.target_point.z, _x.target_heading,) = _get_struct_fB3df().unpack(str[start:end])
+      self.target_point_detected = bool(self.target_point_detected)
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill
@@ -259,6 +284,8 @@ float64 z
       for val1 in self.center_path:
         _x = val1
         buff.write(_get_struct_3d().pack(_x.x, _x.y, _x.z))
+      _x = self
+      buff.write(_get_struct_fB3df().pack(_x.lateral_error, _x.target_point_detected, _x.target_point.x, _x.target_point.y, _x.target_point.z, _x.target_heading))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -279,6 +306,8 @@ float64 z
         self.right_lane_points = None
       if self.center_path is None:
         self.center_path = None
+      if self.target_point is None:
+        self.target_point = geometry_msgs.msg.Point()
       end = 0
       _x = self
       start = end
@@ -338,6 +367,11 @@ float64 z
         end += 24
         (_x.x, _x.y, _x.z,) = _get_struct_3d().unpack(str[start:end])
         self.center_path.append(val1)
+      _x = self
+      start = end
+      end += 33
+      (_x.lateral_error, _x.target_point_detected, _x.target_point.x, _x.target_point.y, _x.target_point.z, _x.target_heading,) = _get_struct_fB3df().unpack(str[start:end])
+      self.target_point_detected = bool(self.target_point_detected)
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill
@@ -376,3 +410,9 @@ def _get_struct_bB():
     if _struct_bB is None:
         _struct_bB = struct.Struct("<bB")
     return _struct_bB
+_struct_fB3df = None
+def _get_struct_fB3df():
+    global _struct_fB3df
+    if _struct_fB3df is None:
+        _struct_fB3df = struct.Struct("<fB3df")
+    return _struct_fB3df

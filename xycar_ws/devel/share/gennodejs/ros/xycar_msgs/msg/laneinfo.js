@@ -25,6 +25,7 @@ class laneinfo {
       this.right_y = null;
       this.right_slope = null;
       this.lane_number = null;
+      this.cone_detected_flag = null;
     }
     else {
       if (initObj.hasOwnProperty('left_x')) {
@@ -69,6 +70,12 @@ class laneinfo {
       else {
         this.lane_number = 0;
       }
+      if (initObj.hasOwnProperty('cone_detected_flag')) {
+        this.cone_detected_flag = initObj.cone_detected_flag
+      }
+      else {
+        this.cone_detected_flag = false;
+      }
     }
   }
 
@@ -88,6 +95,8 @@ class laneinfo {
     bufferOffset = _serializer.float32(obj.right_slope, buffer, bufferOffset);
     // Serialize message field [lane_number]
     bufferOffset = _serializer.int32(obj.lane_number, buffer, bufferOffset);
+    // Serialize message field [cone_detected_flag]
+    bufferOffset = _serializer.bool(obj.cone_detected_flag, buffer, bufferOffset);
     return bufferOffset;
   }
 
@@ -109,11 +118,13 @@ class laneinfo {
     data.right_slope = _deserializer.float32(buffer, bufferOffset);
     // Deserialize message field [lane_number]
     data.lane_number = _deserializer.int32(buffer, bufferOffset);
+    // Deserialize message field [cone_detected_flag]
+    data.cone_detected_flag = _deserializer.bool(buffer, bufferOffset);
     return data;
   }
 
   static getMessageSize(object) {
-    return 28;
+    return 29;
   }
 
   static datatype() {
@@ -123,7 +134,7 @@ class laneinfo {
 
   static md5sum() {
     //Returns md5sum for a message object
-    return '6d0d242a09af36c4e0ef3fbf421ba402';
+    return '80e7564081aa5c4a700b9b80391fcc78';
   }
 
   static messageDefinition() {
@@ -136,6 +147,7 @@ class laneinfo {
     float32 right_y
     float32 right_slope
     int32 lane_number  # 1: 1차선, 2: 2차선 
+    bool cone_detected_flag
     `;
   }
 
@@ -192,6 +204,13 @@ class laneinfo {
     }
     else {
       resolved.lane_number = 0
+    }
+
+    if (msg.cone_detected_flag !== undefined) {
+      resolved.cone_detected_flag = msg.cone_detected_flag;
+    }
+    else {
+      resolved.cone_detected_flag = false
     }
 
     return resolved;

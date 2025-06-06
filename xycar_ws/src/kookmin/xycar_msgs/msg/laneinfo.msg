@@ -5,3 +5,4 @@ float32 right_x
 float32 right_y
 float32 right_slope
 int32 lane_number  # 1: 1차선, 2: 2차선 
+bool cone_detected_flag
