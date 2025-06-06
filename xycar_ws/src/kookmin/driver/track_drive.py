@@ -94,6 +94,10 @@ lidar_points, = ax.plot([], [], 'bo')
 
 sim_start_time = None  # 시뮬레이터 시작 시각 저장용
 
+# 이전 조향값 저장을 위한 변수들
+steering_history = []  # 이전 조향값들을 저장할 리스트
+MAX_HISTORY_SIZE = 10  # 저장할 최대 조향값 개수
+
 #=============================================
 # 콜백함수 - 카메라 토픽을 처리하는 콜백함수
 #=============================================
@@ -305,7 +309,7 @@ def calculate_normal_steering():
     global lane_data, L, is_speed_boosted
     global last_left_lane_detected, last_right_lane_detected
     global left_lane_missing_time, right_lane_missing_time
-
+    global steering_history
     FixSpeed = Fix_Speed
     left_x = lane_data.left_x
     right_x = lane_data.right_x
@@ -320,15 +324,19 @@ def calculate_normal_steering():
 
     # 속도 증가 중일 때 제어 파라미터 약간 변경
     if is_speed_boosted:
-        K_y = 0.85
-        K_phi = 2.8
+        K_y = 1.0
+        K_phi = 3.5
 
     current_time = time.time()
 
     # 3-1) 양쪽 차선 모두 감지되지 않을 때
     if left_x == 130 and right_x == -130:
-        rospy.logwarn("Both lanes lost, 조향각 0 반환")
-        return 0.0, FixSpeed
+        rospy.logwarn("Both lanes lost, 최근 조향각 평균 사용")
+        if steering_history:
+            avg_steering = sum(steering_history) / len(steering_history)
+            return avg_steering, FixSpeed
+        else:
+            return 0.0, FixSpeed
 
     # 3-2) 왼쪽 차선만 없는 경우
     elif left_x == 130:
@@ -387,10 +395,11 @@ def calculate_normal_steering():
 
     # 속도 증가 중일 때 조향 제한 강화
     if is_speed_boosted:
-        steering_angle = max(min(steering_angle, 20.0), -20.0)
-    # else:
-    #     steering_angle = max(min(steering_angle, 50.0), -50.0)
-
+        steering_angle = max(min(steering_angle, 30.0), -30.0)
+    # 최근 조향각 저장
+    steering_history.append(steering_angle)
+    if len(steering_history) > MAX_HISTORY_SIZE:
+        steering_history.pop(0)
     return steering_angle, v
 
 #=============================================
